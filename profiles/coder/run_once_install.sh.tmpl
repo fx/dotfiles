@@ -1,0 +1,24 @@
+#!/bin/bash
+set -e
+
+echo "Setting up Coder profile..."
+
+# Ensure mise is available and activated
+if ! command -v mise >/dev/null 2>&1; then
+    echo "Error: mise is not installed"
+    exit 1
+fi
+
+eval "$(mise activate bash)"
+
+# Install Node.js via mise
+mise use -g node@latest
+mise use -g npm@latest
+
+# Ensure tools are available in current shell
+eval "$(mise activate bash)"
+
+# Install global npm packages
+npm install -g @anthropic-ai/claude-code
+
+echo "Coder profile setup complete!"
