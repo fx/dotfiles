@@ -8,9 +8,11 @@
 
 ## Profile Management
 
-- Dotfiles profiles are stored in the `profiles/` directory
-- Each profile contains its specific configurations and installation requirements
-- Single unified entry point for profile installation via install script
+- Dotfiles use chezmoi's template system with a `profile` variable
+- Profiles are defined in `profiles.yaml` for documentation
+- Installation uses `--promptString profile=NAME` to set the profile
+- Files are conditionally installed based on `{{ if eq .profile "name" }}` templates
+- Shared configurations (like claude) are symlinked conditionally based on profile
 
 ## Ultimate Goal
 

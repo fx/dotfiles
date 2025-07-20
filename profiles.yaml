@@ -1,0 +1,11 @@
+# Available profiles for dotfiles installation
+profiles:
+  coder:
+    description: Profile for Coder workspaces with development tools
+    features:
+      - claude
+    tools:
+      - node (via mise)
+      - npm (via mise)
+    packages:
+      - "@anthropic-ai/claude-code" (global npm)

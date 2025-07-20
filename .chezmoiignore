@@ -1,0 +1,14 @@
+# Repository files that should not be installed
+README.md
+LICENSE
+CLAUDE.md
+install.sh
+profiles.yaml
+.git
+.gitignore
+.devcontainer
+test-*.sh
+*.bak
+
+# Note: shared directory stays in source for symlink targets, not installed to home
+shared/

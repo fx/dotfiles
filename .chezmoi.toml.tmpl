@@ -1,0 +1,6 @@
+{{- $profile := promptString "profile" -}}
+[data]
+    profile = {{ $profile | quote }}
+    
+[diff]
+    pager = "less"

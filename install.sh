@@ -4,7 +4,7 @@ set -e
 # Dotfiles installer script
 # Usage: curl -sSL fx.github.io/dotfiles/install.sh | sh -s -- [profile]
 
-PROFILE="${1:-coder}"
+PROFILE="${DOTFILES_PROFILE:-${1:-coder}}"
 DOTFILES_REPO="fx/dotfiles"
 MISE_INSTALL_URL="https://mise.jdx.dev/install.sh"
 
@@ -40,6 +40,10 @@ mise use -g chezmoi@latest
 
 # Initialize dotfiles with selected profile
 echo "Initializing dotfiles..."
-mise exec -- chezmoi init --apply "$DOTFILES_URL" --source "$HOME/.local/share/chezmoi/profiles/$PROFILE"
+mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL"
+
+# Apply the dotfiles
+echo "Applying dotfiles..."
+mise exec -- chezmoi apply
 
 echo "Dotfiles installation complete!"
