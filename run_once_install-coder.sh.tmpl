@@ -22,11 +22,6 @@ eval "$(mise activate bash)"
 # Install global npm packages
 npm install -g @anthropic-ai/claude-code
 
-# Create .claude symlink
-if [ ! -e "$HOME/.claude" ]; then
-    ln -s "{{ .chezmoi.sourceDir }}/shared/claude" "$HOME/.claude"
-fi
-
 echo "Coder profile setup complete!"
 {{- else -}}
 echo "Profile {{ .profile }} does not require additional setup"

@@ -1,0 +1,46 @@
+{{ if eq .profile "coder" -}}
+#!/bin/bash
+set -e
+
+# Check if running inside a Coder workspace
+if [ "$CODER" = "true" ]; then
+    echo "Running inside Coder workspace, setting up Claude..."
+    
+    # Check if /shared/.claude exists
+    if [ -d "/shared/.claude" ]; then
+        echo "Found existing /shared/.claude, creating symlinks..."
+        # Remove existing ~/.claude if it exists and is not a symlink to /shared/.claude
+        if [ -e "$HOME/.claude" ] && [ "$(readlink -f "$HOME/.claude")" != "/shared/.claude" ]; then
+            rm -rf "$HOME/.claude"
+        fi
+        # Create symlink to /shared/.claude
+        ln -sf /shared/.claude "$HOME/.claude"
+        
+        # Handle .claude.json symlink
+        if [ -f "/shared/.claude.json" ]; then
+            # Remove existing ~/.claude.json if it's not already a symlink to /shared/.claude.json
+            if [ -e "$HOME/.claude.json" ] && [ "$(readlink -f "$HOME/.claude.json")" != "/shared/.claude.json" ]; then
+                rm -f "$HOME/.claude.json"
+            fi
+            ln -sf /shared/.claude.json "$HOME/.claude.json"
+        fi
+    else
+        echo "No /shared/.claude found, copying from dotfiles..."
+        # Copy claude directory to /shared/
+        cp -r {{ .chezmoi.sourceDir }}/shared/claude /shared/.claude
+        
+        # Create symlinks
+        ln -sf /shared/.claude "$HOME/.claude"
+        
+        # Copy settings.json as .claude.json to /shared/
+        if [ -f "{{ .chezmoi.sourceDir }}/shared/claude/settings.json" ]; then
+            cp {{ .chezmoi.sourceDir }}/shared/claude/settings.json /shared/.claude.json
+            ln -sf /shared/.claude.json "$HOME/.claude.json"
+        fi
+    fi
+else
+    echo "Not in Coder workspace, creating regular symlink..."
+    # Outside of Coder, just symlink to the dotfiles version
+    ln -sf {{ .chezmoi.sourceDir }}/shared/claude "$HOME/.claude"
+fi
+{{ end -}}
