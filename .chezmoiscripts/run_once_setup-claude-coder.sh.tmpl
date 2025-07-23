@@ -1,6 +1,7 @@
-{{ if eq .profile "coder" -}}
 #!/bin/bash
 set -e
+
+{{ if eq .profile "coder" -}}
 
 # Check if running inside a Coder workspace
 if [ "$CODER" = "true" ]; then
