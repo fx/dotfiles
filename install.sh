@@ -8,57 +8,91 @@ PROFILE="${DOTFILES_PROFILE:-${1:-coder}}"
 DOTFILES_REPO="fx/dotfiles"
 MISE_INSTALL_URL="https://mise.jdx.dev/install.sh"
 
+# ANSI color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# Helper functions for colored output
+print_step() { echo -e "${BLUE}${BOLD}→${RESET} ${CYAN}$1${RESET}"; }
+print_success() { echo -e "${GREEN}${BOLD}✓${RESET} ${GREEN}$1${RESET}"; }
+print_warning() { echo -e "${YELLOW}${BOLD}⚠${RESET} ${YELLOW}$1${RESET}"; }
+print_error() { echo -e "${RED}${BOLD}✗${RESET} ${RED}$1${RESET}"; }
+print_info() { echo -e "${MAGENTA}${BOLD}ℹ${RESET} ${MAGENTA}$1${RESET}"; }
+
 # Set Git to automatically accept new SSH keys while preserving existing GIT_SSH_COMMAND
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o StrictHostKeyChecking=accept-new"
 
-# Test git SSH access by attempting to ls-remote
-if git ls-remote "git@github.com:${DOTFILES_REPO}.git" >/dev/null 2>&1; then
-    DOTFILES_URL="git@github.com:${DOTFILES_REPO}.git"
-    echo "Using SSH for dotfiles repository"
-else
-    DOTFILES_URL="https://github.com/${DOTFILES_REPO}.git"
-    echo "Using HTTPS for dotfiles repository"
+# Purge cached chezmoi directory if it exists
+if [ -d "$HOME/.local/share/chezmoi" ]; then
+    print_info "Removing cached chezmoi directory..."
+    rm -rf "$HOME/.local/share/chezmoi"
 fi
 
-echo "Installing dotfiles with profile: $PROFILE"
+# Test git SSH access by attempting to ls-remote
+print_step "Checking Git access..."
+if git ls-remote "git@github.com:${DOTFILES_REPO}.git" >/dev/null 2>&1; then
+    DOTFILES_URL="git@github.com:${DOTFILES_REPO}.git"
+    print_success "Using SSH for dotfiles repository"
+else
+    DOTFILES_URL="https://github.com/${DOTFILES_REPO}.git"
+    print_warning "Using HTTPS for dotfiles repository"
+fi
+
+echo ""
+echo -e "${BOLD}🚀 Installing dotfiles${RESET}"
+echo -e "${BOLD}   Profile: ${CYAN}$PROFILE${RESET}"
+echo ""
 
 # Check if mise is installed
 if command -v mise >/dev/null 2>&1; then
-    echo "mise is already installed"
+    print_success "mise is already installed"
 else
-    echo "Installing mise..."
-    curl -sSL "$MISE_INSTALL_URL" | sh
+    print_step "Installing mise..."
+    curl -sSL "$MISE_INSTALL_URL" | sh >/dev/null 2>&1
     export PATH="$HOME/.local/bin:$PATH"
+    print_success "mise installed"
 fi
 
 # Activate mise
-eval "$(mise activate bash)"
+eval "$(mise activate bash)" 2>/dev/null
 
 # Install chezmoi via mise
-echo "Installing chezmoi..."
-mise use -g chezmoi@latest
+print_step "Installing chezmoi..."
+mise use -g chezmoi@latest >/dev/null 2>&1
+print_success "chezmoi installed"
 
 # Initialize dotfiles with selected profile
-echo "Initializing dotfiles..."
-mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL"
+print_step "Initializing dotfiles..."
+mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" >/dev/null 2>&1
+print_success "Dotfiles initialized"
 
 # Apply the dotfiles
-echo "Applying dotfiles..."
-mise exec -- chezmoi apply
+print_step "Applying dotfiles..."
+mise exec -- chezmoi apply >/dev/null 2>&1
+print_success "Dotfiles applied"
 
 # Setup shared symlinks for Coder environments
 if [ "$CODER" = "true" ] && [ "$PROFILE" = "coder" ]; then
-    echo "Setting up shared symlinks for Coder..."
+    print_step "Setting up shared symlinks..."
     SCRIPT_PATH="$HOME/.local/share/chezmoi/.chezmoiscripts/run_onchange_after_setup-shared-symlinks.sh.tmpl"
     if [ -f "$SCRIPT_PATH" ]; then
-        bash -c "$(chezmoi execute-template < "$SCRIPT_PATH")" || true
+        bash -c "$(chezmoi execute-template < "$SCRIPT_PATH")" >/dev/null 2>&1 || true
     else
         # Fallback to workspace script
         SCRIPT_PATH="/workspace/.chezmoiscripts/run_onchange_after_setup-shared-symlinks.sh.tmpl"
         if [ -f "$SCRIPT_PATH" ]; then
-            bash -c "$(chezmoi execute-template --init --promptString profile="$PROFILE" < "$SCRIPT_PATH")" || true
+            bash -c "$(chezmoi execute-template --init --promptString profile="$PROFILE" < "$SCRIPT_PATH")" >/dev/null 2>&1 || true
         fi
     fi
+    print_success "Shared symlinks configured"
 fi
 
-echo "Dotfiles installation complete!"
+echo ""
+echo -e "${GREEN}${BOLD}✨ Dotfiles installation complete!${RESET}"
+echo ""
