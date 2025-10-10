@@ -72,26 +72,10 @@ print_step "Initializing dotfiles..."
 mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" >/dev/null 2>&1
 print_success "Dotfiles initialized"
 
-# Apply the dotfiles
+# Apply the dotfiles (this automatically runs .chezmoiscripts)
 print_step "Applying dotfiles..."
 mise exec -- chezmoi apply >/dev/null 2>&1
 print_success "Dotfiles applied"
-
-# Setup shared symlinks for Coder environments
-if [ "$CODER" = "true" ] && [ "$PROFILE" = "coder" ]; then
-    print_step "Setting up shared symlinks..."
-    SCRIPT_PATH="$HOME/.local/share/chezmoi/.chezmoiscripts/run_onchange_after_setup-shared-symlinks.sh.tmpl"
-    if [ -f "$SCRIPT_PATH" ]; then
-        bash -c "$(chezmoi execute-template < "$SCRIPT_PATH")" >/dev/null 2>&1 || true
-    else
-        # Fallback to workspace script
-        SCRIPT_PATH="/workspace/.chezmoiscripts/run_onchange_after_setup-shared-symlinks.sh.tmpl"
-        if [ -f "$SCRIPT_PATH" ]; then
-            bash -c "$(chezmoi execute-template --init --promptString profile="$PROFILE" < "$SCRIPT_PATH")" >/dev/null 2>&1 || true
-        fi
-    fi
-    print_success "Shared symlinks configured"
-fi
 
 echo ""
 echo -e "${GREEN}${BOLD}✨ Dotfiles installation complete!${RESET}"
