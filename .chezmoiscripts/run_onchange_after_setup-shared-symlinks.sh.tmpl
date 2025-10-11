@@ -7,26 +7,29 @@ set -e
 if [ "$CODER" = "true" ]; then
 
     # ========================================
-    # Generic /shared/home/ symlinking
+    # Generic shared dotfiles symlinking
     # ========================================
 
-    # Ensure /shared/home exists
-    mkdir -p /shared/home
+    # Use DOTFILES_SHARED_HOME env var, default to /shared/home
+    SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home}"
 
-    # If /shared/home is empty, seed it from dotfiles shared/ directory
-    if [ -z "$(ls -A /shared/home 2>/dev/null)" ]; then
+    # Ensure shared home exists
+    mkdir -p "$SHARED_HOME"
+
+    # If shared home is empty, seed it from dotfiles shared/ directory
+    if [ -z "$(ls -A "$SHARED_HOME" 2>/dev/null)" ]; then
         if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
-            # Copy each item from shared/ to /shared/home/ with dot prefix
+            # Copy each item from shared/ to shared home with dot prefix
             for item in {{ .chezmoi.sourceDir }}/shared/*; do
                 [ -e "$item" ] || continue
                 basename_item=$(basename "$item")
-                cp -r "$item" "/shared/home/.$basename_item"
+                cp -r "$item" "$SHARED_HOME/.$basename_item"
             done
         fi
     fi
 
-    # Symlink everything from /shared/home to $HOME
-    for item in /shared/home/.[!.]* /shared/home/*; do
+    # Symlink everything from shared home to $HOME
+    for item in "$SHARED_HOME"/.[!.]* "$SHARED_HOME"/*; do
         # Skip if glob didn't match anything
         [ -e "$item" ] || continue
 
