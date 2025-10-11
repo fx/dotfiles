@@ -1,6 +1,13 @@
 {{- $profile := promptString "profile" -}}
+{{- $include_defaults := true -}}
+{{- if eq $profile "default" -}}
+{{-   $include_defaults = true -}}
+{{- else if eq $profile "onXmaps" -}}
+{{-   $include_defaults = true -}}
+{{- end -}}
 [data]
     profile = {{ $profile | quote }}
-    
+    include_defaults = {{ $include_defaults }}
+
 [diff]
     pager = "less"

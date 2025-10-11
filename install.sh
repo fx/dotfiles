@@ -4,7 +4,7 @@ set -e
 # Dotfiles installer script
 # Usage: curl -sSL fx.github.io/dotfiles/install.sh | sh -s -- [profile]
 
-PROFILE="${DOTFILES_PROFILE:-${1:-coder}}"
+PROFILE="${DOTFILES_PROFILE:-${1:-default}}"
 DOTFILES_REPO="fx/dotfiles"
 MISE_INSTALL_URL="https://mise.jdx.dev/install.sh"
 

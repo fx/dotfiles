@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-{{ if eq .profile "coder" -}}
-echo "Setting up Coder profile..."
+{{ if .include_defaults -}}
+echo "Setting up {{ .profile }} profile..."
 
 # Ensure mise is available and activated
 if ! command -v mise >/dev/null 2>&1; then
@@ -22,7 +22,7 @@ eval "$(mise activate bash)"
 # Install global npm packages
 npm install -g @anthropic-ai/claude-code
 
-echo "Coder profile setup complete!"
+echo "{{ .profile }} profile setup complete!"
 {{- else -}}
 echo "Profile {{ .profile }} does not require additional setup"
 {{- end }}

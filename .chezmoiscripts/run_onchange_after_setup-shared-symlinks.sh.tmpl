@@ -1,39 +1,43 @@
 #!/bin/bash
 set -e
 
-{{ if eq .profile "coder" -}}
+{{ if .include_defaults -}}
 
 # Check if running inside a Coder workspace
 if [ "$CODER" = "true" ]; then
 
     # ========================================
-    # Generic shared dotfiles symlinking
+    # Setup shared home directory structure
     # ========================================
 
-    # Use DOTFILES_SHARED_HOME env var, default to /shared/home
-    SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home}"
+    # Use DOTFILES_SHARED_HOME env var, default to /shared/home/default
+    SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home/default}"
 
     # Ensure shared home exists
     mkdir -p "$SHARED_HOME"
 
-    # If shared home is empty, seed it from dotfiles shared/ directory
-    if [ -z "$(ls -A "$SHARED_HOME" 2>/dev/null)" ]; then
-        if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
-            # Copy each item from shared/ to shared home with dot prefix
-            for item in {{ .chezmoi.sourceDir }}/shared/*; do
-                [ -e "$item" ] || continue
-                basename_item=$(basename "$item")
-                cp -r "$item" "$SHARED_HOME/.$basename_item"
-            done
-        fi
+    # Seed missing files/directories from dotfiles/shared/ as defaults
+    if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
+        for item in {{ .chezmoi.sourceDir }}/shared/*; do
+            [ -e "$item" ] || continue
+
+            basename_item=$(basename "$item")
+            # Add dot prefix for home directory
+            target="$SHARED_HOME/.$basename_item"
+
+            # Only copy if it doesn't exist in shared home
+            if [ ! -e "$target" ]; then
+                cp -r "$item" "$target"
+            fi
+        done
     fi
 
-    # Symlink everything from shared home to $HOME
-    for item in "$SHARED_HOME"/.[!.]* "$SHARED_HOME"/*; do
-        # Skip if glob didn't match anything
+    # Symlink from shared home to $HOME, but only for items that don't exist in $HOME
+    for item in "$SHARED_HOME"/.*; do
         [ -e "$item" ] || continue
+        [ "$(basename "$item")" = "." ] && continue
+        [ "$(basename "$item")" = ".." ] && continue
 
-        # Get basename
         basename_item=$(basename "$item")
 
         # Skip .config (managed by chezmoi)
@@ -42,13 +46,10 @@ if [ "$CODER" = "true" ]; then
         # Target path in home directory
         target="$HOME/$basename_item"
 
-        # If target exists and is not already a symlink to the shared version, remove it
-        if [ -e "$target" ] && [ "$(readlink -f "$target")" != "$item" ]; then
-            rm -rf "$target"
+        # If target doesn't exist, create symlink
+        if [ ! -e "$target" ]; then
+            ln -sf "$item" "$target"
         fi
-
-        # Create symlink
-        ln -sf "$item" "$target"
     done
 
 else
@@ -57,7 +58,11 @@ else
         for item in {{ .chezmoi.sourceDir }}/shared/*; do
             [ -e "$item" ] || continue
             basename_item=$(basename "$item")
-            ln -sf "$item" "$HOME/.$basename_item"
+
+            # Only symlink if doesn't exist in home (with dot prefix)
+            if [ ! -e "$HOME/.$basename_item" ]; then
+                ln -sf "$item" "$HOME/.$basename_item"
+            fi
         done
     fi
 fi
