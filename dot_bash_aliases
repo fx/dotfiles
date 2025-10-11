@@ -1,0 +1,4 @@
+# Bash aliases
+
+# Claude CLI - skip permissions prompt
+alias claude='claude --dangerously-skip-permissions'
