@@ -1,8 +1,0 @@
-{
-  "name": "Dotfiles Dev Container",
-  "build": {
-    "dockerfile": "Dockerfile"
-  },
-  "remoteUser": "fx",
-  "postCreateCommand": "mise --version"
-}
