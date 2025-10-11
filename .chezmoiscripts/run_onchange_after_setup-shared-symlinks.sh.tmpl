@@ -32,7 +32,29 @@ if [ "$CODER" = "true" ]; then
         done
     fi
 
-    # Symlink from shared home to $HOME, but only for items that don't exist in $HOME
+    # First, symlink from /shared/home/shared/ (universal for all profiles)
+    if [ -d "/shared/home/shared" ]; then
+        for item in /shared/home/shared/.*; do
+            [ -e "$item" ] || continue
+            [ "$(basename "$item")" = "." ] && continue
+            [ "$(basename "$item")" = ".." ] && continue
+
+            basename_item=$(basename "$item")
+
+            # Skip .config (managed by chezmoi)
+            [ "$basename_item" = ".config" ] && continue
+
+            # Target path in home directory
+            target="$HOME/$basename_item"
+
+            # Create symlink only if target doesn't exist
+            if [ ! -e "$target" ]; then
+                ln -sf "$item" "$target"
+            fi
+        done
+    fi
+
+    # Then, symlink from profile-specific shared home (can override shared)
     for item in "$SHARED_HOME"/.*; do
         [ -e "$item" ] || continue
         [ "$(basename "$item")" = "." ] && continue
@@ -46,10 +68,8 @@ if [ "$CODER" = "true" ]; then
         # Target path in home directory
         target="$HOME/$basename_item"
 
-        # If target doesn't exist, create symlink
-        if [ ! -e "$target" ]; then
-            ln -sf "$item" "$target"
-        fi
+        # Force symlink (overrides shared if exists)
+        ln -sf "$item" "$target"
     done
 
 else
