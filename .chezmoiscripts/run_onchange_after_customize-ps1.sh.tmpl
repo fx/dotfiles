@@ -1,8 +1,15 @@
-{{- /* chezmoi:modify-template */ -}}
-{{- if .include_defaults -}}
-{{ .chezmoi.stdin }}
+#!/bin/bash
+set -e
 
-# Custom PS1 - Extract home directory name from DOTFILES_SHARED_HOME
+{{ if .include_defaults -}}
+
+# Hash: ps1-customization-v1
+
+# Append PS1 customization to .bashrc if not already present
+if ! grep -q "DOTFILES_SHARED_HOME PS1" "$HOME/.bashrc" 2>/dev/null; then
+    cat >> "$HOME/.bashrc" << 'EOF'
+
+# Custom PS1 - Extract home directory name from DOTFILES_SHARED_HOME PS1
 if [ -n "$DOTFILES_SHARED_HOME" ]; then
     HOME_NAME=$(basename "$DOTFILES_SHARED_HOME")
 else
@@ -31,6 +38,7 @@ __bash_prompt() {
     PS1="${userpart} ${lightblue}\w ${gitbranch}${removecolor}\$ "
 }
 __bash_prompt
-{{- else -}}
-{{ .chezmoi.stdin }}
-{{- end -}}
+EOF
+fi
+
+{{ end -}}
