@@ -25,6 +25,19 @@ print_warning() { echo -e "${YELLOW}${BOLD}⚠${RESET} ${YELLOW}$1${RESET}"; }
 print_error() { echo -e "${RED}${BOLD}✗${RESET} ${RED}$1${RESET}"; }
 print_info() { echo -e "${MAGENTA}${BOLD}ℹ${RESET} ${MAGENTA}$1${RESET}"; }
 
+# Run command with error handling
+run_or_fail() {
+    local msg="$1"
+    shift
+    if ! "$@" 2>&1 | tee -a /tmp/install.log; then
+        print_error "$msg"
+        echo ""
+        echo "Error details:"
+        tail -20 /tmp/install.log
+        exit 1
+    fi
+}
+
 # Set Git to automatically accept new SSH keys while preserving existing GIT_SSH_COMMAND
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o StrictHostKeyChecking=accept-new"
 
@@ -54,27 +67,27 @@ if command -v mise >/dev/null 2>&1; then
     print_success "mise is already installed"
 else
     print_step "Installing mise..."
-    curl -sSL "$MISE_INSTALL_URL" | sh >/dev/null 2>&1
+    run_or_fail "Failed to install mise" sh -c "curl -sSL '$MISE_INSTALL_URL' | sh"
     export PATH="$HOME/.local/bin:$PATH"
     print_success "mise installed"
 fi
 
 # Activate mise
-eval "$(mise activate bash)" 2>/dev/null
+eval "$(mise activate bash)" 2>>/tmp/install.log || run_or_fail "Failed to activate mise" false
 
 # Install chezmoi via mise
 print_step "Installing chezmoi..."
-mise use -g chezmoi@latest >/dev/null 2>&1
+run_or_fail "Failed to install chezmoi" mise use -g chezmoi@latest
 print_success "chezmoi installed"
 
 # Initialize dotfiles with selected profile
 print_step "Initializing dotfiles..."
-mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" >/dev/null 2>&1
+run_or_fail "Failed to initialize dotfiles" mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL"
 print_success "Dotfiles initialized"
 
 # Apply the dotfiles (this automatically runs .chezmoiscripts)
 print_step "Applying dotfiles..."
-mise exec -- chezmoi apply >/dev/null 2>&1
+run_or_fail "Failed to apply dotfiles" mise exec -- chezmoi apply
 print_success "Dotfiles applied"
 
 echo ""
