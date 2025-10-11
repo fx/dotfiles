@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+{{ if eq .profile "coder" -}}
+
+# Install mise tools from global config
+if command -v mise >/dev/null 2>&1; then
+    # Activate mise in this shell
+    eval "$(mise activate bash)" 2>/dev/null || true
+
+    # Install global tools (from ~/.config/mise/config.toml)
+    mise install >/dev/null 2>&1 || true
+fi
+
+{{ end -}}
