@@ -1,5 +1,7 @@
 # Dotfiles Principles
 
+**⚠️ WARNING: This is a PUBLIC repository! Never commit personal information, credentials, API keys, or proprietary content to this repository.**
+
 ## Installation Hierarchy
 
 1. **chezmoi first**: Always use chezmoi for installations and configuration management
@@ -23,28 +25,41 @@ The Claude configuration in `shared/claude/` is synchronized from the system Cla
 1. **One-way sync**: Files are only copied FROM the system configuration TO this repository, never the reverse
 2. **Existing files only**: Only files that already exist in `shared/claude/` are synchronized
 3. **Referenced files included**: If synchronized files reference other files (e.g., agents referenced in commands), those are brought along
-4. **No sensitive data**: The sync process excludes sensitive files like:
+4. **⚠️ NO SENSITIVE OR PROPRIETARY DATA**: The sync process MUST exclude:
    - Session data, cache files, and temporary files
    - Project-specific conversation histories (`projects/` directory)
    - Shell snapshots and statsig data
    - Todo lists and other runtime data
+   - Personal information, credentials, API keys, tokens, or passwords
+   - Company/employer-specific content, product names, or proprietary terminology
+   - Work-related agents, commands, or configuration files
+   - Internal URLs, endpoints, or infrastructure details
+   - Any content that references specific companies, products, or clients
 
-### Files Synchronized
+### What Gets Synchronized
 
-The following files and directories are synchronized:
-- `CLAUDE.md` - Main configuration file with git and PR conventions
-- `settings.json` - Claude settings
-- `commands/` - Custom command definitions (coder.md, gitingest.sh)
-- `agents/` - Agent definitions referenced by commands (requirements-analyzer, planner, issue-updater, pr-preparer, pr-check-monitor, coder)
+The following are synchronized from system Claude config to this repository:
+- `CLAUDE.md` - Core configuration and conventions
+- `settings.json` - Editor settings (with personal data removed)
+- `commands/` - Generic command workflows
+- `agents/` - Generic agent definitions
+
+Only sync files that are generic and contain no proprietary content. Exclude anything employer/client/project-specific.
 
 ### Manual Sync Process
 
 To manually sync Claude configuration:
 1. Identify changed files in the source configuration
-2. Copy only matching files that exist in `shared/claude/`
-3. Check for any newly referenced files and copy those too
-4. Verify no sensitive data is included
-5. Commit the changes
+2. **⚠️ SECURITY CHECK**: Review files for ANY sensitive or proprietary content
+3. Copy ONLY safe, generic files that exist in `shared/claude/`
+4. Check for any newly referenced files and copy those too (if safe)
+5. **⚠️ FINAL VERIFICATION**: Review all changes with `git diff` to ensure no sensitive data is included
+6. Commit the changes with a clear message describing what was synced
+
+**NEVER sync**:
+- Files containing company/product names, proprietary terminology
+- Work-specific agents, commands, or workflows
+- Personal information, credentials, or internal infrastructure details
 
 ## Ultimate Goal
 

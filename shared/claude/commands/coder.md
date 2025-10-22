@@ -1,177 +1,91 @@
 # Coder Command
 
-Orchestrates the complete software development lifecycle for implementing GitHub issues using specialized agents. This command manages requirements analysis, planning, implementation, PR preparation, and monitoring through a coordinated agent workflow.
+Implements coding tasks using specialized agents for planning, implementation, and review.
 
 ## Usage
 ```
-/coder [<github-issue-url>]
+/coder <task-description>
 ```
 
-## Overview
-The coder command coordinates multiple specialized agents to ensure comprehensive, high-quality implementations:
+- Accepts any coding task description
+- Coordinates agents for planning and implementation
+- Ensures code quality through review
+- No GitHub issue required
 
-1. **Requirements Analysis** - Fetch and analyze GitHub issues, extract requirements, gather context
-2. **Planning** - Create detailed implementation plans following project conventions
-3. **Implementation** - Execute the plan with proper branching, commits, and testing
-4. **PR Preparation** - Clean up commits, ensure compliance, create professional PRs
-5. **Monitoring** - Watch PR checks and automatically fix failures until all pass
+## Execution
 
-## Workflow
+Orchestrates coding tasks by coordinating specialized agents.
 
-### Phase 1: Requirements & Planning
+## Workflow Phases
 
-1. **Requirements Analysis**:
-   ```
-   Use requirements-analyzer agent to:
-   - Fetch GitHub issue (or find next logical issue)
-   - Extract all requirements and acceptance criteria
-   - Gather context from referenced URLs
-   - Compile comprehensive requirements document
-   ```
-
-2. **Check for Existing Plan**:
-   ```
-   Check if issue has 'planned' label using gh CLI
-   If found, skip planning phase to avoid re-planning
-   ```
-
-3. **Create Implementation Plan**:
-   ```
-   Use planner agent to:
-   - Analyze requirements and project context
-   - Create detailed, phased implementation plan
-   - Include testing strategy and risk assessment
-   - Generate success criteria checklist
-   ```
-
-4. **Update Issue**:
-   ```
-   Use issue-updater agent to:
-   - Add plan as a comment on the GitHub issue
-   - Add 'planned' label to the issue
-   - Update issue status to "In Progress" if using project boards
-   - Create any missing labels if needed
-   ```
+### Phase 1: Planning
+- Use planner subagent to break down task into implementation steps
+- Validate approach and dependencies
 
 ### Phase 2: Implementation
+- Use coder subagent to implement code changes
+- Break large changes into logical commits
+- **CRITICAL**: When using feature branches, get user approval for each PR before starting next
+- Ensure code follows project conventions
 
-5. **Execute Implementation**:
-   ```
-   Use coder agent (or specialized variant) to:
-   - Create feature branch
-   - Implement according to plan
-   - Make atomic commits
-   - Run tests and linting
-   - Handle any implementation challenges
-   ```
+### Phase 3: Review & Testing
+- Use pr-reviewer subagent to review code quality
+- Use coder subagent to fix any issues found
+- Run tests and ensure all pass
 
-### Phase 3: Pull Request
+### Phase 4: Finalization
+- Create clean commits with proper messages
+- Prepare code for integration
+- Document changes if needed
 
-6. **Prepare PR**:
-   ```
-   Use pr-preparer agent to:
-   - Ensure all changes are committed
-   - Verify branch and commit compliance
-   - Create professional PR description
-   - Push changes and create PR
-   ```
+## Key Rules
 
-### Phase 4: Monitoring & Completion
+- **Use agents exclusively** - Never implement directly
+- **Sequential PRs** - Only ONE PR open at a time when breaking features
+- **Follow conventions** - Match existing code style
+- **Test thoroughly** - Ensure changes don't break existing code
+- **Clean commits** - Atomic, well-described changes
 
-7. **Monitor PR Checks**:
-   ```
-   Use pr-check-monitor agent to:
-   - Watch all PR status checks
-   - Automatically delegate fixes for failures
-   - Continue until all checks pass
-   ```
+## Agent Dependencies
 
-8. **Update Issue Status**:
-   ```
-   Use issue-updater agent to:
-   - Update issue status to "Done"
-   - Add completion comment
-   ```
+Required agents:
+- `planner` - Creates implementation plans
+- `coder` - Implements code changes
+- `pr-reviewer` - Reviews code quality
+- `general-purpose` - Research and analysis
 
-## Agent Coordination
+## Task Examples
 
-The main orchestrator follows this logic:
-
-```python
-# Pseudo-code for orchestration
-def coder_command(issue_url=None):
-    # Phase 1: Requirements & Planning
-    requirements = Task(
-        description="Analyze requirements",
-        prompt=f"Analyze requirements for {issue_url or 'next logical issue'}",
-        subagent_type="requirements-analyzer"
-    )
-    
-    if not has_existing_plan(requirements.issue_number):
-        plan = Task(
-            description="Create implementation plan",
-            prompt=f"Create plan based on: {requirements}",
-            subagent_type="planner"
-        )
-        
-        Task(
-            description="Update issue with plan",
-            prompt=f"Add plan to issue #{requirements.issue_number}: {plan}",
-            subagent_type="issue-updater"
-        )
-    
-    # Phase 2: Implementation
-    Task(
-        description="Implement feature",
-        prompt=f"Implement issue #{requirements.issue_number} using the plan",
-        subagent_type="coder"
-    )
-    
-    # Phase 3: Pull Request
-    pr_info = Task(
-        description="Prepare pull request",
-        prompt="Prepare PR for review and submission",
-        subagent_type="pr-preparer"
-    )
-    
-    # Phase 4: Monitoring
-    Task(
-        description="Monitor PR checks",
-        prompt=f"Monitor PR #{pr_info.pr_number} and fix any failing checks",
-        subagent_type="pr-check-monitor"
-    )
-    
-    # Final status update
-    Task(
-        description="Update issue status",
-        prompt=f"Update issue #{requirements.issue_number} status to Done",
-        subagent_type="issue-updater"
-    )
 ```
-
-## Key Requirements
-
-- **Always use agents** - Never perform tasks directly; delegate to specialized agents
-- **Check for existing plans** - Avoid re-planning already planned issues
-- **Maintain status updates** - Keep GitHub issues and project boards current
-- **Ensure PR quality** - All PRs must pass checks before considering work complete
-- **Follow conventions** - All agents must adhere to CLAUDE.md and project standards
+/coder Add dark mode toggle to settings page
+/coder Refactor auth module to use async/await
+/coder Fix memory leak in data processing pipeline
+/coder Implement caching layer for API responses
+```
 
 ## Error Handling
 
-If any agent fails:
-1. Capture the error details
-2. Determine if it's recoverable
-3. Either retry with adjusted parameters or report the blocker
-4. Never leave work in an incomplete state
+- **Agent failure**: Retry with adjusted parameters
+- **Ambiguous requirements**: Use agents to research codebase
+- **Complex tasks**: Break into smaller subtasks
 
-## Available Agents
+## Common Patterns
 
-- **requirements-analyzer**: Fetches and analyzes GitHub issues
-- **planner**: Creates comprehensive implementation plans
-- **issue-updater**: Updates GitHub issues with progress
-- **coder**: Implements features and fixes
-- **pr-preparer**: Prepares PRs for submission
-- **pr-check-monitor**: Monitors and fixes PR check failures
+### Feature Implementation
+- Use planner subagent to break down feature
+- Use coder subagent to implement incrementally
+- Create PR, get user approval for feature branch before next PR
+- Use pr-reviewer subagent to review and refine
+- Test thoroughly
 
-Additional specialized coders may be available for specific technologies or patterns.
+### Bug Fixes
+- Use general-purpose subagent to research root cause
+- Write failing test first
+- Use coder subagent to implement fix
+- Verify test passes
+
+### Refactoring
+- Use general-purpose subagent to understand current implementation
+- Use planner subagent to plan refactor approach
+- Use coder subagent to implement changes incrementally
+- Ensure tests still pass
