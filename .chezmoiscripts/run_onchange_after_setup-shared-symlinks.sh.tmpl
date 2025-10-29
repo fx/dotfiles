@@ -72,6 +72,25 @@ if [ "$CODER" = "true" ]; then
         ln -sf "$item" "$target"
     done
 
+    # ========================================
+    # Setup GitHub CLI shared authentication
+    # ========================================
+    if [ -d /shared/.config/gh ]; then
+        echo "Setting up GitHub CLI shared authentication..."
+
+        # Remove existing gh config if it exists and is not a symlink
+        if [ -e "$HOME/.config/gh" ] && [ ! -L "$HOME/.config/gh" ]; then
+            rm -rf "$HOME/.config/gh"
+        fi
+
+        # Create the symlink
+        ln -sfn /shared/.config/gh "$HOME/.config/gh"
+        echo "✓ GitHub CLI symlinked to /shared/.config/gh"
+    else
+        echo "⚠ /shared/.config/gh not found - GitHub CLI auth not configured"
+        echo "  To set up shared authentication, create /shared/.config/gh/hosts.yml with your token"
+    fi
+
 else
     # Outside of Coder, symlink from dotfiles shared/ directory
     if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
