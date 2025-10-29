@@ -22,36 +22,46 @@ GitHub CLI (`gh`) authentication is managed via shared configuration stored in `
 
 ### How It Works
 
-1. Store your GitHub token once in `/shared/.config/gh/hosts.yml`
-2. The dotfiles setup script creates a symlink: `~/.config/gh` → `/shared/.config/gh`
-3. All workspaces automatically use the same authentication
-4. Token persists across workspace rebuilds since `/shared` is persistent storage
+1. On first run, dotfiles seeds `/shared/.config/gh/` from `dotfiles/shared/gh/` (template files with placeholders)
+2. User updates `/shared/.config/gh/hosts.yml` with their actual GitHub token
+3. The dotfiles setup script creates a symlink: `~/.config/gh` → `/shared/.config/gh`
+4. All workspaces automatically use the same authentication
+5. Token persists across workspace rebuilds since `/shared` is persistent storage
 
 ### Setup Instructions
 
-1. In any coder workspace, copy your existing token to the shared location:
+1. **First workspace**: The dotfiles script will automatically seed `/shared/.config/gh/` with template files
+2. **Update your token**: Edit the seeded template with your actual GitHub token:
    ```bash
-   mkdir -p /shared/.config/gh
-   cp ~/.config/gh/hosts.yml /shared/.config/gh/hosts.yml
+   nano /shared/.config/gh/hosts.yml
+   # Replace YOUR_TOKEN_HERE with your actual token
+   ```
+3. **Set permissions**:
+   ```bash
    chmod 600 /shared/.config/gh/hosts.yml
    ```
+4. **Done**: All current and future workspaces will automatically use this token
 
-2. Or create `/shared/.config/gh/hosts.yml` manually:
-   ```yaml
-   github.com:
-       user: YOUR_USERNAME
-       oauth_token: YOUR_TOKEN_HERE
-       git_protocol: https
-   ```
+### Getting Your GitHub Token
 
-3. The dotfiles `run_onchange_after_setup-shared-symlinks.sh.tmpl` script will automatically create the symlink in all workspaces
+Visit https://github.com/settings/tokens/new and create a Personal Access Token with these scopes:
+- `repo` (Full control of private repositories)
+- `read:org` (Read org and team membership)
+- `workflow` (Update GitHub Action workflows)
+
+### Files in `shared/gh/`
+
+- `hosts.yml` - Template for GitHub authentication (contains placeholders)
+- `config.yml` - GitHub CLI preferences
+- `README.md` - Instructions for setup
 
 ### Security Notes
 
 - The `/shared` directory is persistent across workspace rebuilds
 - Access is limited to your Kubernetes namespace
-- Token file should have `600` permissions
+- Token file should have `600` permissions (set automatically)
 - Never commit GitHub tokens to any repository
+- The template files contain placeholders that MUST be replaced with your actual credentials
 
 ## Claude Configuration Synchronization
 

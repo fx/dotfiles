@@ -75,6 +75,17 @@ if [ "$CODER" = "true" ]; then
     # ========================================
     # Setup GitHub CLI shared authentication
     # ========================================
+
+    # Seed /shared/.config/gh from dotfiles/shared/gh if it doesn't exist
+    if [ -d "{{ .chezmoi.sourceDir }}/shared/gh" ] && [ ! -d /shared/.config/gh ]; then
+        echo "Seeding /shared/.config/gh from dotfiles..."
+        mkdir -p /shared/.config
+        cp -r "{{ .chezmoi.sourceDir }}/shared/gh" /shared/.config/gh
+        chmod 600 /shared/.config/gh/hosts.yml 2>/dev/null || true
+        echo "✓ Created /shared/.config/gh (update hosts.yml with your token)"
+    fi
+
+    # Create symlink from ~/.config/gh to /shared/.config/gh
     if [ -d /shared/.config/gh ]; then
         echo "Setting up GitHub CLI shared authentication..."
 
@@ -86,9 +97,6 @@ if [ "$CODER" = "true" ]; then
         # Create the symlink
         ln -sfn /shared/.config/gh "$HOME/.config/gh"
         echo "✓ GitHub CLI symlinked to /shared/.config/gh"
-    else
-        echo "⚠ /shared/.config/gh not found - GitHub CLI auth not configured"
-        echo "  To set up shared authentication, create /shared/.config/gh/hosts.yml with your token"
     fi
 
 else
