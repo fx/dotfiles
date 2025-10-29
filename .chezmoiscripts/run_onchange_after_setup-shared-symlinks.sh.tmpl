@@ -72,6 +72,42 @@ if [ "$CODER" = "true" ]; then
         ln -sf "$item" "$target"
     done
 
+    # ========================================
+    # Setup GitHub CLI shared authentication
+    # ========================================
+
+    # Define shared GitHub CLI config path for maintainability
+    GH_SHARED_CONFIG="/shared/.config/gh"
+
+    # Seed /shared/.config/gh from dotfiles/shared/gh if it doesn't exist
+    if [ -d "{{ .chezmoi.sourceDir }}/shared/gh" ] && [ ! -d "$GH_SHARED_CONFIG" ]; then
+        echo "Seeding $GH_SHARED_CONFIG from dotfiles..."
+        mkdir -p /shared/.config
+        cp -r "{{ .chezmoi.sourceDir }}/shared/gh" "$GH_SHARED_CONFIG"
+        chmod 600 "$GH_SHARED_CONFIG/hosts.yml" 2>/dev/null || true
+        echo "✓ Created $GH_SHARED_CONFIG (update hosts.yml with your token)"
+    fi
+
+    # Create symlink from ~/.config/gh to /shared/.config/gh
+    if [ -d "$GH_SHARED_CONFIG" ]; then
+        echo "Setting up GitHub CLI shared authentication..."
+
+        # Backup and remove existing gh config if it exists and is not a symlink
+        if [ -e "$HOME/.config/gh" ] && [ ! -L "$HOME/.config/gh" ]; then
+            echo "Backing up existing GitHub CLI config to $GH_SHARED_CONFIG.backup before removal..."
+            timestamp=$(date +"%Y%m%d_%H%M%S")
+            backup_dir="${GH_SHARED_CONFIG}.backup_$timestamp"
+            cp -r "$HOME/.config/gh" "$backup_dir"
+            echo "✓ Backed up to $backup_dir"
+            rm -rf "$HOME/.config/gh"
+        fi
+
+        # Create the symlink (ensure parent directory exists)
+        mkdir -p "$HOME/.config"
+        ln -sfn "$GH_SHARED_CONFIG" "$HOME/.config/gh"
+        echo "✓ GitHub CLI symlinked to $GH_SHARED_CONFIG"
+    fi
+
 else
     # Outside of Coder, symlink from dotfiles shared/ directory
     if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then

@@ -16,6 +16,53 @@
 - Files are conditionally installed based on `{{ if eq .profile "name" }}` templates
 - Shared configurations (like claude) are symlinked conditionally based on profile
 
+## GitHub CLI Shared Authentication
+
+GitHub CLI (`gh`) authentication is managed via shared configuration stored in `/shared/.config/gh/` on coder workspaces. This eliminates the need to run `gh auth login` in every workspace.
+
+### How It Works
+
+1. On first run, dotfiles seeds `/shared/.config/gh/` from `dotfiles/shared/gh/` (template files with placeholders)
+2. User updates `/shared/.config/gh/hosts.yml` with their actual GitHub token
+3. The dotfiles setup script creates a symlink: `~/.config/gh` → `/shared/.config/gh`
+4. All workspaces automatically use the same authentication
+5. Token persists across workspace rebuilds since `/shared` is persistent storage
+
+### Setup Instructions
+
+1. **First workspace**: The dotfiles script will automatically seed `/shared/.config/gh/` with template files
+2. **Update your token**: Edit the seeded template with your actual GitHub token:
+   ```bash
+   nano /shared/.config/gh/hosts.yml
+   # Replace YOUR_TOKEN_HERE with your actual token
+   ```
+3. **Set permissions**:
+   ```bash
+   chmod 600 /shared/.config/gh/hosts.yml
+   ```
+4. **Done**: All current and future workspaces will automatically use this token
+
+### Getting Your GitHub Token
+
+Visit https://github.com/settings/tokens/new and create a Personal Access Token with these scopes:
+- `repo` (Full control of private repositories)
+- `read:org` (Read org and team membership)
+- `workflow` (Update GitHub Action workflows)
+
+### Files in `shared/gh/`
+
+- `hosts.yml` - Template for GitHub authentication (contains placeholders)
+- `config.yml` - GitHub CLI preferences
+- `README.md` - Instructions for setup
+
+### Security Notes
+
+- The `/shared` directory is persistent across workspace rebuilds
+- Access is limited to your Kubernetes namespace
+- Token file should have `600` permissions (set automatically)
+- Never commit GitHub tokens to any repository
+- The template files contain placeholders that MUST be replaced with your actual credentials
+
 ## Claude Configuration Synchronization
 
 The Claude configuration in `shared/claude/` is synchronized from the system Claude configuration. This ensures consistent AI assistant behavior across the codebase.
