@@ -112,17 +112,22 @@ docker run --rm \
         echo "user_settings" > "$HOME/.claude/settings.json"
         echo "user_custom" > "$HOME/.claude/custom.txt"
 
-        # Mark workspace as safe directory for Git BEFORE installing tools
-        git config --global --add safe.directory /workspace
-
         # Install mise and chezmoi
         curl -sSL https://mise.jdx.dev/install.sh | sh >/dev/null 2>&1
         export PATH="$HOME/.local/bin:$PATH"
         eval "$(mise activate bash)"
         mise use -g chezmoi@latest >/dev/null 2>&1
 
-        # Use local repository as source (not GitHub)
-        mise exec -- chezmoi init --apply --promptString profile=default /workspace 2>&1 | grep -v "git config" || true
+        # Copy current branch content to a temporary location that chezmoi can access
+        # This avoids Git ownership issues with Docker mounts
+        TEMP_REPO="/tmp/test-dotfiles"
+        cp -r /workspace "$TEMP_REPO"
+        cd "$TEMP_REPO"
+        git config --global --add safe.directory "$TEMP_REPO"
+
+        # Use the temporary repository copy
+        cd "$HOME"
+        mise exec -- chezmoi init --apply --promptString profile=default "$TEMP_REPO" 2>&1 | grep -v "git config" || true
 
         # Verify ~/.claude is NOT a symlink (real directory)
         if [ ! -L "$HOME/.claude" ] && [ -d "$HOME/.claude" ]; then
