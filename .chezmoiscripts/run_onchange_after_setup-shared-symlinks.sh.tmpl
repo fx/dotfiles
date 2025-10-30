@@ -10,18 +10,19 @@ symlink_claude() {
     local source_claude_dir="$1"
 
     # If ~/.claude doesn't exist OR is a symlink, symlink the entire directory
+    # Use -n flag to treat destination as normal file (prevents creating symlink inside directory)
     if [ ! -e "$HOME/.claude" ] || [ -L "$HOME/.claude" ]; then
-        ln -sf "$source_claude_dir" "$HOME/.claude"
+        ln -sfn "$source_claude_dir" "$HOME/.claude"
     else
         # If ~/.claude is a real directory, only symlink specific subdirectories and files
         for subdir in agents commands skills; do
             if [ -d "$source_claude_dir/$subdir" ]; then
-                ln -sf "$source_claude_dir/$subdir" "$HOME/.claude/$subdir"
+                ln -sfn "$source_claude_dir/$subdir" "$HOME/.claude/$subdir"
             fi
         done
         # Also symlink CLAUDE.md if it exists
         if [ -f "$source_claude_dir/CLAUDE.md" ]; then
-            ln -sf "$source_claude_dir/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+            ln -sfn "$source_claude_dir/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
         fi
     fi
 }
