@@ -118,6 +118,9 @@ docker run --rm \
         eval "$(mise activate bash)"
         mise use -g chezmoi@latest >/dev/null 2>&1
 
+        # Mark workspace as safe directory for Git
+        git config --global --add safe.directory /workspace
+
         # Use local repository as source (not GitHub)
         mise exec -- chezmoi init --apply --promptString profile=default /workspace 2>&1 | grep -v "git config" || true
 
