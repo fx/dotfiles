@@ -3,59 +3,42 @@ set -e
 
 {{ if .include_defaults -}}
 
-# Check if running inside a Coder workspace
-if [ "$CODER" = "true" ]; then
+# Enable nullglob to prevent glob patterns from being treated as literals when no files match
+shopt -s nullglob
 
-    # ========================================
-    # Setup shared home directory structure
-    # ========================================
+# ========================================
+# Function: Handle .claude directory symlinking
+# ========================================
+symlink_claude() {
+    local source_claude_dir="$1"
 
-    # Use DOTFILES_SHARED_HOME env var, default to /shared/home/default
-    SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home/default}"
-
-    # Ensure shared home exists
-    mkdir -p "$SHARED_HOME"
-
-    # Seed missing files/directories from dotfiles/shared/ as defaults
-    if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
-        for item in {{ .chezmoi.sourceDir }}/shared/*; do
-            [ -e "$item" ] || continue
-
-            basename_item=$(basename "$item")
-            # Add dot prefix for home directory
-            target="$SHARED_HOME/.$basename_item"
-
-            # Only copy if it doesn't exist in shared home
-            if [ ! -e "$target" ]; then
-                cp -r "$item" "$target"
+    # If ~/.claude doesn't exist OR is a symlink, symlink the entire directory
+    # Use -n flag to treat destination as normal file (prevents creating symlink inside directory)
+    if [ ! -e "$HOME/.claude" ] || [ -L "$HOME/.claude" ]; then
+        ln -sfn "$source_claude_dir" "$HOME/.claude"
+    else
+        # If ~/.claude is a real directory, only symlink specific subdirectories and files
+        for subdir in agents commands skills; do
+            if [ -d "$source_claude_dir/$subdir" ]; then
+                ln -sfn "$source_claude_dir/$subdir" "$HOME/.claude/$subdir"
             fi
         done
+        # Also symlink CLAUDE.md if it exists
+        if [ -f "$source_claude_dir/CLAUDE.md" ]; then
+            ln -sfn "$source_claude_dir/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+        fi
     fi
+}
 
-    # First, symlink from /shared/home/shared/ (universal for all profiles)
-    if [ -d "/shared/home/shared" ]; then
-        for item in /shared/home/shared/.*; do
-            [ -e "$item" ] || continue
-            [ "$(basename "$item")" = "." ] && continue
-            [ "$(basename "$item")" = ".." ] && continue
+# ========================================
+# Function: Symlink items to home directory
+# ========================================
+# Used only in Coder workspaces to symlink from /shared/ directories
+symlink_to_home() {
+    local source_dir="$1"
+    local force_overwrite="${2:-false}"  # If true, overwrite existing symlinks
 
-            basename_item=$(basename "$item")
-
-            # Skip .config (managed by chezmoi)
-            [ "$basename_item" = ".config" ] && continue
-
-            # Target path in home directory
-            target="$HOME/$basename_item"
-
-            # Create symlink only if target doesn't exist
-            if [ ! -e "$target" ]; then
-                ln -sf "$item" "$target"
-            fi
-        done
-    fi
-
-    # Then, symlink from profile-specific shared home (can override shared)
-    for item in "$SHARED_HOME"/.*; do
+    for item in "$source_dir"/.*; do
         [ -e "$item" ] || continue
         [ "$(basename "$item")" = "." ] && continue
         [ "$(basename "$item")" = ".." ] && continue
@@ -65,21 +48,59 @@ if [ "$CODER" = "true" ]; then
         # Skip .config (managed by chezmoi)
         [ "$basename_item" = ".config" ] && continue
 
-        # Target path in home directory
+        # Handle .claude specially
+        if [ "$basename_item" = ".claude" ]; then
+            symlink_claude "$item"
+            continue
+        fi
+
+        # For other items
         target="$HOME/$basename_item"
 
-        # Force symlink (overrides shared if exists)
-        ln -sf "$item" "$target"
+        if [ "$force_overwrite" = "true" ]; then
+            # Force symlink (overrides existing)
+            ln -sf "$item" "$target"
+        else
+            # Only create symlink if target doesn't exist
+            if [ ! -e "$target" ]; then
+                ln -sf "$item" "$target"
+            fi
+        fi
     done
+}
 
-    # ========================================
-    # Setup GitHub CLI shared authentication
-    # ========================================
+# ========================================
+# CODER WORKSPACE SETUP
+# ========================================
+# Uses persistent /shared/ directories for profile-based configuration
+# that survives workspace rebuilds
 
-    # Define shared GitHub CLI config path for maintainability
+if [ "$CODER" = "true" ]; then
+    SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home/default}"
+    mkdir -p "$SHARED_HOME"
+
+    # Seed /shared/home/{profile}/ from dotfiles if empty
+    if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
+        for item in {{ .chezmoi.sourceDir }}/shared/*; do
+            [ -e "$item" ] || continue
+            basename_item=$(basename "$item")
+            target="$SHARED_HOME/.$basename_item"
+            if [ ! -e "$target" ]; then
+                cp -r "$item" "$target"
+            fi
+        done
+    fi
+
+    # Symlink from /shared/home/shared/ (universal for all profiles)
+    if [ -d "/shared/home/shared" ]; then
+        symlink_to_home "/shared/home/shared" false
+    fi
+
+    # Symlink from /shared/home/{profile}/ (profile-specific, can override)
+    symlink_to_home "$SHARED_HOME" true
+
+    # GitHub CLI: Symlink ~/.config/gh to /shared/.config/gh
     GH_SHARED_CONFIG="/shared/.config/gh"
-
-    # Seed /shared/.config/gh from dotfiles/shared/gh if it doesn't exist
     if [ -d "{{ .chezmoi.sourceDir }}/shared/gh" ] && [ ! -d "$GH_SHARED_CONFIG" ]; then
         echo "Seeding $GH_SHARED_CONFIG from dotfiles..."
         mkdir -p /shared/.config
@@ -88,34 +109,38 @@ if [ "$CODER" = "true" ]; then
         echo "✓ Created $GH_SHARED_CONFIG (update hosts.yml with your token)"
     fi
 
-    # Create symlink from ~/.config/gh to /shared/.config/gh
     if [ -d "$GH_SHARED_CONFIG" ]; then
         echo "Setting up GitHub CLI shared authentication..."
-
-        # Backup and remove existing gh config if it exists and is not a symlink
         if [ -e "$HOME/.config/gh" ] && [ ! -L "$HOME/.config/gh" ]; then
-            echo "Backing up existing GitHub CLI config to $GH_SHARED_CONFIG.backup before removal..."
             timestamp=$(date +"%Y%m%d_%H%M%S")
             backup_dir="${GH_SHARED_CONFIG}.backup_$timestamp"
             cp -r "$HOME/.config/gh" "$backup_dir"
             echo "✓ Backed up to $backup_dir"
             rm -rf "$HOME/.config/gh"
         fi
-
-        # Create the symlink (ensure parent directory exists)
         mkdir -p "$HOME/.config"
         ln -sfn "$GH_SHARED_CONFIG" "$HOME/.config/gh"
         echo "✓ GitHub CLI symlinked to $GH_SHARED_CONFIG"
     fi
 
+# ========================================
+# NON-CODER ENVIRONMENT SETUP
+# ========================================
+# Symlinks directly from dotfiles repo (no /shared/ directory exists)
+
 else
-    # Outside of Coder, symlink from dotfiles shared/ directory
     if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
         for item in {{ .chezmoi.sourceDir }}/shared/*; do
             [ -e "$item" ] || continue
             basename_item=$(basename "$item")
 
-            # Only symlink if doesn't exist in home (with dot prefix)
+            # Handle claude specially (no dot prefix in source)
+            if [ "$basename_item" = "claude" ]; then
+                symlink_claude "$item"
+                continue
+            fi
+
+            # Symlink other items if they don't exist (add dot prefix)
             if [ ! -e "$HOME/.$basename_item" ]; then
                 ln -sf "$item" "$HOME/.$basename_item"
             fi
