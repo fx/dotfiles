@@ -112,8 +112,14 @@ docker run --rm \
         echo "user_settings" > "$HOME/.claude/settings.json"
         echo "user_custom" > "$HOME/.claude/custom.txt"
 
-        # Install dotfiles in Coder mode
-        bash install.sh default 2>&1 | grep -v "git config" || true
+        # Install mise and chezmoi first
+        curl -sSL https://mise.jdx.dev/install.sh | sh >/dev/null 2>&1
+        export PATH="$HOME/.local/bin:$PATH"
+        eval "$(mise activate bash)"
+        mise use -g chezmoi@latest >/dev/null 2>&1
+
+        # Use local repository as source (not GitHub)
+        mise exec -- chezmoi init --apply --promptString profile=default /workspace 2>&1 | grep -v "git config" || true
 
         # Verify ~/.claude is NOT a symlink (real directory)
         if [ ! -L "$HOME/.claude" ] && [ -d "$HOME/.claude" ]; then
