@@ -108,6 +108,34 @@ To manually sync Claude configuration:
 - Work-specific agents, commands, or workflows
 - Personal information, credentials, or internal infrastructure details
 
+## Testing
+
+### Local Testing
+
+The dotfiles include automated tests that verify both Coder and non-Coder installation scenarios using Docker.
+
+**Prerequisites:**
+- Docker installed and running
+- If Docker is not running: `sudo service docker start`
+
+**Run tests:**
+```bash
+./test/test-dotfiles.sh
+```
+
+**What it tests:**
+1. **Non-Coder Environment**: Verifies direct symlinking from dotfiles repo
+2. **Coder Fresh Install**: Verifies `/shared/` seeding and full directory symlink
+3. **Coder Existing ~/.claude**: Verifies selective subdirectory symlinking (agents, commands, skills, CLAUDE.md)
+
+### CI Testing
+
+Tests run automatically on:
+- Push to `main` branch
+- Pull requests to `main` branch
+
+The CI workflow (`.github/workflows/test.yml`) uses GitHub Actions and runs the same test script in an Ubuntu environment.
+
 ## Ultimate Goal
 
 Host a shell script on GitHub Pages (e.g., fx.github.io/dotfiles/install.sh) that can be run via:
