@@ -3,6 +3,9 @@ set -e
 
 {{ if .include_defaults -}}
 
+# Enable nullglob to prevent glob patterns from being treated as literals when no files match
+shopt -s nullglob
+
 # ========================================
 # Function: Handle .claude directory symlinking
 # ========================================
