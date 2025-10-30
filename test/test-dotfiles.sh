@@ -112,14 +112,14 @@ docker run --rm \
         echo "user_settings" > "$HOME/.claude/settings.json"
         echo "user_custom" > "$HOME/.claude/custom.txt"
 
-        # Install mise and chezmoi first
+        # Mark workspace as safe directory for Git BEFORE installing tools
+        git config --global --add safe.directory /workspace
+
+        # Install mise and chezmoi
         curl -sSL https://mise.jdx.dev/install.sh | sh >/dev/null 2>&1
         export PATH="$HOME/.local/bin:$PATH"
         eval "$(mise activate bash)"
         mise use -g chezmoi@latest >/dev/null 2>&1
-
-        # Mark all directories as safe for Git in test environment
-        git config --global --add safe.directory '*'
 
         # Use local repository as source (not GitHub)
         mise exec -- chezmoi init --apply --promptString profile=default /workspace 2>&1 | grep -v "git config" || true
