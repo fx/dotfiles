@@ -4,20 +4,20 @@ profiles:
     description: Default profile for Coder workspaces with development tools
     include_defaults: true
     features:
-      - claude
+      - claude marketplace configuration
     tools:
       - node (via mise)
       - npm (via mise)
     packages:
-      - "@anthropic-ai/claude-code" (global npm)
+      - none (Claude Code should be installed separately)
 
   onXmaps:
     description: onXmaps profile for Coder workspaces with development tools
     include_defaults: true
     features:
-      - claude
+      - claude marketplace configuration
     tools:
       - node (via mise)
       - npm (via mise)
     packages:
-      - "@anthropic-ai/claude-code" (global npm)
+      - none (Claude Code should be installed separately)
