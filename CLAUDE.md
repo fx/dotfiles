@@ -63,52 +63,123 @@ Visit https://github.com/settings/tokens/new and create a Personal Access Token 
 - Never commit GitHub tokens to any repository
 - The template files contain placeholders that MUST be replaced with your actual credentials
 
-## Claude Configuration Synchronization
+## Claude Code Marketplace
 
-The Claude configuration in `shared/claude/` is synchronized from the system Claude configuration. This ensures consistent AI assistant behavior across the codebase.
+Claude Code plugins, skills, and agents are distributed via the `fx/cc` marketplace repository. The dotfiles automatically configure this marketplace for development.
 
-### Synchronization Rules
+### How It Works
 
-1. **One-way sync**: Files are only copied FROM the system configuration TO this repository, never the reverse
-2. **Existing files only**: Only files that already exist in `shared/claude/` are synchronized
-3. **Referenced files included**: If synchronized files reference other files (e.g., agents referenced in commands), those are brought along
-4. **⚠️ NO SENSITIVE OR PROPRIETARY DATA**: The sync process MUST exclude:
-   - Session data, cache files, and temporary files
-   - Project-specific conversation histories (`projects/` directory)
-   - Shell snapshots and statsig data
-   - Todo lists and other runtime data
-   - Personal information, credentials, API keys, tokens, or passwords
-   - Company/employer-specific content, product names, or proprietary terminology
-   - Work-related agents, commands, or configuration files
-   - Internal URLs, endpoints, or infrastructure details
-   - Any content that references specific companies, products, or clients
+1. **Automatic Configuration**: Dotfiles configure `fx/cc` marketplace via `~/.claude/settings.json`:
+   ```json
+   {
+     "extraKnownMarketplaces": {
+       "fx-cc": {
+         "source": {
+           "source": "git",
+           "url": "git@github.com:fx/cc.git"
+         }
+       }
+     }
+   }
+   ```
 
-### What Gets Synchronized
+2. **Auto-Clone**: When you trust the workspace, Claude Code automatically clones the repository via SSH to:
+   - `~/.claude/plugins/marketplaces/fx-cc/`
+   - Full git repository with SSH remote
+   - Ready for development (commit, push, etc.)
 
-The following are synchronized from system Claude config to this repository:
-- `CLAUDE.md` - Core configuration and conventions
-- `settings.json` - Editor settings (with personal data removed)
-- `commands/` - Generic command workflows
-- `agents/` - Generic agent definitions
+3. **Plugin Discovery**: Use `/plugin marketplace list` to see available plugins
 
-Only sync files that are generic and contain no proprietary content. Exclude anything employer/client/project-specific.
+4. **Installation**: Install desired plugins:
+   ```bash
+   /plugin install fx-dev     # Development agents and commands
+   /plugin install fx-test    # Test plugin
+   ```
 
-### Manual Sync Process
+### Available Plugins
 
-To manually sync Claude configuration:
-1. Identify changed files in the source configuration
-2. **⚠️ SECURITY CHECK**: Review files for ANY sensitive or proprietary content
-3. Copy ONLY safe, generic files that exist in `shared/claude/`
-4. Check for any newly referenced files and copy those too (if safe)
-5. **⚠️ FINAL VERIFICATION**: Review all changes with `git diff` to ensure no sensitive data is included
-6. Commit the changes with a clear message describing what was synced
+Visit [https://cc.fx.gd](https://cc.fx.gd) or check `~/.claude/plugins/marketplaces/fx-cc/` to see available plugins.
 
-**NEVER sync**:
-- Files containing company/product names, proprietary terminology
-- Work-specific agents, commands, or workflows
-- Personal information, credentials, or internal infrastructure details
+### Development Workflow
+
+**Making changes to plugins:**
+```bash
+# Navigate to the marketplace repository
+cd ~/.claude/plugins/marketplaces/fx-cc
+
+# Make changes to plugins
+vim plugins/fx-dev/agents/coder.md
+
+# Commit and push
+git add .
+git commit -m "feat(fx-dev): improve coder agent"
+git push
+```
+
+**Creating a new plugin:**
+```bash
+cd ~/.claude/plugins/marketplaces/fx-cc
+
+# Create plugin structure
+mkdir -p plugins/my-plugin/{.claude-plugin,agents,skills}
+cd plugins/my-plugin
+
+# Create manifest
+cat > .claude-plugin/plugin.json <<EOF
+{
+  "name": "my-plugin",
+  "version": "0.1.0",
+  "description": "My custom plugin"
+}
+EOF
+
+# Add your agents/skills/commands
+# ...
+
+# Update marketplace.json
+cd ../..
+vim .claude-plugin/marketplace.json
+
+# Commit and push
+git add .
+git commit -m "feat: add my-plugin"
+git push
+```
+
+**Testing changes:**
+- Changes are immediately available to Claude Code
+- Reload Claude Code window to pick up changes
+- Use `/plugin update fx-cc` to refresh marketplace
+
+### Updates
+
+Claude Code automatically manages marketplace updates. The repository in `~/.claude/plugins/marketplaces/fx-cc/` is a full git repository, so you can:
+- Pull updates: `cd ~/.claude/plugins/marketplaces/fx-cc && git pull`
+- Switch branches for testing
+- Make local changes and push upstream
+
+### Security Notes
+
+- SSH clone requires GitHub SSH key authentication
+- Uses existing gh CLI authentication for SSH keys
+- Repository is owned by you and fully under your control
+- Never commit sensitive data to plugin repositories
 
 ## Testing
+
+### Testing Workflow
+
+**CRITICAL**: All tests MUST pass locally before committing changes:
+
+1. **Run tests locally first**:
+   ```bash
+   sudo service docker start  # if needed
+   ./test/test-dotfiles.sh
+   ```
+
+2. **Only commit if tests pass locally**
+
+3. **CI validates the same tests** - should always pass if local tests passed
 
 ### Local Testing
 
@@ -124,9 +195,9 @@ The dotfiles include automated tests that verify both Coder and non-Coder instal
 ```
 
 **What it tests:**
-1. **Non-Coder Environment**: Verifies direct symlinking from dotfiles repo
-2. **Coder Fresh Install**: Verifies `/shared/` seeding and full directory symlink
-3. **Coder Existing ~/.claude**: Verifies selective subdirectory symlinking (agents, commands, skills, CLAUDE.md)
+1. **Non-Coder Environment**: Verifies dotfiles installation and marketplace configuration
+2. **Coder Fresh Install**: Verifies `/shared/` seeding and marketplace configuration
+3. **Coder Existing ~/.claude**: Verifies user files are preserved
 
 ### CI Testing
 
@@ -135,6 +206,8 @@ Tests run automatically on:
 - Pull requests to `main` branch
 
 The CI workflow (`.github/workflows/test.yml`) uses GitHub Actions and runs the same test script in an Ubuntu environment.
+
+**Note**: CI tests should always pass if local tests passed. If CI fails but local tests pass, there's likely an environment difference that needs investigation.
 
 ## Ultimate Goal
 
