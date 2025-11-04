@@ -7,30 +7,6 @@ set -e
 shopt -s nullglob
 
 # ========================================
-# Function: Handle .claude directory symlinking
-# ========================================
-symlink_claude() {
-    local source_claude_dir="$1"
-
-    # If ~/.claude doesn't exist OR is a symlink, symlink the entire directory
-    # Use -n flag to treat destination as normal file (prevents creating symlink inside directory)
-    if [ ! -e "$HOME/.claude" ] || [ -L "$HOME/.claude" ]; then
-        ln -sfn "$source_claude_dir" "$HOME/.claude"
-    else
-        # If ~/.claude is a real directory, only symlink specific subdirectories and files
-        for subdir in agents commands skills; do
-            if [ -d "$source_claude_dir/$subdir" ]; then
-                ln -sfn "$source_claude_dir/$subdir" "$HOME/.claude/$subdir"
-            fi
-        done
-        # Also symlink CLAUDE.md if it exists
-        if [ -f "$source_claude_dir/CLAUDE.md" ]; then
-            ln -sfn "$source_claude_dir/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
-        fi
-    fi
-}
-
-# ========================================
 # Function: Symlink items to home directory
 # ========================================
 # Used only in Coder workspaces to symlink from /shared/ directories
@@ -47,12 +23,6 @@ symlink_to_home() {
 
         # Skip .config (managed by chezmoi)
         [ "$basename_item" = ".config" ] && continue
-
-        # Handle .claude specially
-        if [ "$basename_item" = ".claude" ]; then
-            symlink_claude "$item"
-            continue
-        fi
 
         # For other items
         target="$HOME/$basename_item"
@@ -79,17 +49,9 @@ if [ "$CODER" = "true" ]; then
     SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home/default}"
     mkdir -p "$SHARED_HOME"
 
-    # Seed /shared/home/{profile}/ from dotfiles if empty
-    if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
-        for item in {{ .chezmoi.sourceDir }}/shared/*; do
-            [ -e "$item" ] || continue
-            basename_item=$(basename "$item")
-            target="$SHARED_HOME/.$basename_item"
-            if [ ! -e "$target" ]; then
-                cp -r "$item" "$target"
-            fi
-        done
-    fi
+    # Note: The shared/ directory in dotfiles repo is no longer used for seeding
+    # All configuration is now managed directly by chezmoi from dot_ prefixed directories
+    # The /shared/ persistent directory is still used for GitHub CLI and other per-workspace config
 
     # Symlink from /shared/home/shared/ (universal for all profiles)
     if [ -d "/shared/home/shared" ]; then
@@ -123,28 +85,5 @@ if [ "$CODER" = "true" ]; then
         echo "✓ GitHub CLI symlinked to $GH_SHARED_CONFIG"
     fi
 
-# ========================================
-# NON-CODER ENVIRONMENT SETUP
-# ========================================
-# Symlinks directly from dotfiles repo (no /shared/ directory exists)
-
-else
-    if [ -d "{{ .chezmoi.sourceDir }}/shared" ]; then
-        for item in {{ .chezmoi.sourceDir }}/shared/*; do
-            [ -e "$item" ] || continue
-            basename_item=$(basename "$item")
-
-            # Handle claude specially (no dot prefix in source)
-            if [ "$basename_item" = "claude" ]; then
-                symlink_claude "$item"
-                continue
-            fi
-
-            # Symlink other items if they don't exist (add dot prefix)
-            if [ ! -e "$HOME/.$basename_item" ]; then
-                ln -sf "$item" "$HOME/.$basename_item"
-            fi
-        done
-    fi
 fi
 {{ end -}}
