@@ -1,0 +1,16 @@
+---
+# Claude Code marketplace configuration
+# This data is merged into ~/.claude/settings.json via modify_ script
+
+marketplace:
+  extraKnownMarketplaces:
+    fx-cc:
+      source:
+        source: git
+        url: git@github.com:fx/cc.git
+
+settings:
+  includeCoAuthoredBy: false
+  enableAllProjectMcpServers: true
+  enabledPlugins:
+    fx-dev@fx-cc: true

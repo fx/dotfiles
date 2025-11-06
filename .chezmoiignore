@@ -12,3 +12,7 @@ test-*.sh
 
 # Note: shared directory stays in source for symlink targets, not installed to home
 shared/
+
+# .claude directory is managed by run_onchange_after_update-claude-settings.sh script
+# Not by chezmoi's file management (allows symlinks to work in Coder)
+.claude

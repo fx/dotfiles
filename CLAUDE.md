@@ -70,6 +70,12 @@ Claude Code plugins, skills, and agents are distributed via the `fx/cc` marketpl
 ### How It Works
 
 1. **Automatic Configuration**: Dotfiles configure `fx/cc` marketplace via `~/.claude/settings.json`:
+   - Marketplace configuration is stored in `.chezmoidata/claude.yaml`
+   - A `modify_` script merges this config into existing settings.json (or creates it if missing)
+   - User settings are preserved; only marketplace config and required settings are enforced
+   - Uses chezmoi's template system with `jq` for JSON merging
+
+   Example configuration:
    ```json
    {
      "extraKnownMarketplaces": {

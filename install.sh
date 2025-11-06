@@ -41,20 +41,31 @@ run_or_fail() {
 # Set Git to automatically accept new SSH keys while preserving existing GIT_SSH_COMMAND
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o StrictHostKeyChecking=accept-new"
 
-# Purge cached chezmoi directory if it exists
+# Purge cached chezmoi directory and state if they exist
 if [ -d "$HOME/.local/share/chezmoi" ]; then
     print_info "Removing cached chezmoi directory..."
     rm -rf "$HOME/.local/share/chezmoi"
 fi
+if [ -f "$HOME/.config/chezmoi/chezmoistate.boltdb" ]; then
+    print_info "Removing chezmoi state database..."
+    rm -f "$HOME/.config/chezmoi/chezmoistate.boltdb"
+fi
 
-# Test git SSH access by attempting to ls-remote
-print_step "Checking Git access..."
-if git ls-remote "git@github.com:${DOTFILES_REPO}.git" >/dev/null 2>&1; then
-    DOTFILES_URL="git@github.com:${DOTFILES_REPO}.git"
-    print_success "Using SSH for dotfiles repository"
+# Detect if we're running from within the dotfiles repository
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.chezmoiignore" ] && [ -d "$SCRIPT_DIR/.chezmoiscripts" ]; then
+    DOTFILES_URL="$SCRIPT_DIR"
+    print_success "Using local dotfiles repository at $SCRIPT_DIR"
 else
-    DOTFILES_URL="https://github.com/${DOTFILES_REPO}.git"
-    print_warning "Using HTTPS for dotfiles repository"
+    # Test git SSH access by attempting to ls-remote
+    print_step "Checking Git access..."
+    if git ls-remote "git@github.com:${DOTFILES_REPO}.git" >/dev/null 2>&1; then
+        DOTFILES_URL="git@github.com:${DOTFILES_REPO}.git"
+        print_success "Using SSH for dotfiles repository"
+    else
+        DOTFILES_URL="https://github.com/${DOTFILES_REPO}.git"
+        print_warning "Using HTTPS for dotfiles repository"
+    fi
 fi
 
 echo ""
@@ -82,12 +93,12 @@ print_success "chezmoi installed"
 
 # Initialize dotfiles with selected profile
 print_step "Initializing dotfiles..."
-run_or_fail "Failed to initialize dotfiles" mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL"
+run_or_fail "Failed to initialize dotfiles" mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" 2>&1 | grep -v "Cloning into" | grep -v "^done\.$" || true
 print_success "Dotfiles initialized"
 
 # Apply the dotfiles (this automatically runs .chezmoiscripts)
 print_step "Applying dotfiles..."
-run_or_fail "Failed to apply dotfiles" mise exec -- chezmoi apply
+run_or_fail "Failed to apply dotfiles" mise exec -- chezmoi apply --force
 print_success "Dotfiles applied"
 
 echo ""

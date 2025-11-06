@@ -1,0 +1,36 @@
+#!/bin/bash
+# Update ~/.claude/settings.json with marketplace configuration
+# Works with both real directories and symlinks
+
+{{ if .include_defaults -}}
+set -e
+
+# Ensure ~/.claude exists (as directory or symlink)
+if [ ! -e "$HOME/.claude" ]; then
+    mkdir -p "$HOME/.claude"
+fi
+
+SETTINGS_FILE="$HOME/.claude/settings.json"
+
+# Read existing settings or start with empty object
+if [ -f "$SETTINGS_FILE" ]; then
+    existing=$(cat "$SETTINGS_FILE")
+else
+    existing='{}'
+fi
+
+# Our required settings from .chezmoidata/claude.yaml
+required_settings='{{ .settings | toJson }}'
+marketplace_config='{{ .marketplace | toJson }}'
+
+# Merge: existing settings + our required settings + marketplace config
+# Our settings take precedence (using * operator for recursive merge)
+result=$(echo "$existing" | jq --argjson required "$required_settings" \
+                                --argjson marketplace "$marketplace_config" \
+                                '. * $required * $marketplace')
+
+# Write the merged result
+echo "$result" > "$SETTINGS_FILE"
+
+echo "✓ Updated $SETTINGS_FILE"
+{{ end -}}

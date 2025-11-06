@@ -1,8 +1,0 @@
-#!/bin/bash
-# Remove any existing ~/.claude symlink before chezmoi applies dot_claude/
-
-{{ if .include_defaults -}}
-if [ -L "$HOME/.claude" ]; then
-    rm -f "$HOME/.claude"
-fi
-{{ end -}}
