@@ -1,6 +1,6 @@
 ---
 name: chezmoi-development
-description: This skill should be used when developing or modifying dotfiles using chezmoi. Covers using .chezmoidata for configuration data and modify_ scripts for non-destructive file merging. Particularly useful when needing to configure application settings without overwriting user preferences.
+description: This skill should be used when developing or modifying dotfiles using chezmoi. Covers using .chezmoidata for configuration data and modify_ scripts (or run_onchange_after_ scripts for symlinked directories) for non-destructive file merging. Particularly useful when needing to configure application settings without overwriting user preferences.
 ---
 
 # Chezmoi Development
@@ -9,7 +9,7 @@ description: This skill should be used when developing or modifying dotfiles usi
 
 Develop dotfiles using chezmoi's advanced features for non-destructive configuration management. This skill focuses on two key patterns:
 1. Using `.chezmoidata/` to store structured configuration data
-2. Using `modify_` scripts to merge configuration into existing files without overwriting user settings
+2. Using `modify_` scripts (or `run_onchange_after_` scripts for symlinked directories) to merge configuration into existing files without overwriting user settings
 
 ## When to Use This Skill
 
@@ -32,7 +32,11 @@ Store structured configuration as data files (YAML, JSON, or TOML) in `.chezmoid
 
 **Access in templates:** Reference data via dot notation (e.g., `{{ .app.config.setting }}`)
 
-### modify_ Scripts
+### modify_ Scripts vs run_onchange_ Scripts
+
+There are two approaches for non-destructive configuration management in chezmoi:
+
+#### modify_ Scripts (Preferred for regular directories)
 
 Create executable scripts that transform existing files by reading them via stdin and outputting the modified version to stdout.
 
@@ -42,6 +46,25 @@ Create executable scripts that transform existing files by reading them via stdi
 - Example: `modify_dot_config/app/settings.json.tmpl` → modifies `~/.config/app/settings.json`
 
 **Execution:** chezmoi runs the script, captures stdout, and writes it to the target file.
+
+**How it works:** Chezmoi provides file contents via **stdin** (use `cat -` to read), script outputs merged result to **stdout**.
+
+**Limitation:** Cannot be used when the target directory is a symlink (chezmoi requires managing the directory).
+
+#### run_onchange_after_ Scripts (For symlinked directories)
+
+Create executable scripts in `.chezmoiscripts/` that read from disk and write back to disk.
+
+**Purpose:** Update files in directories that may be symlinks (common in Coder workspaces).
+
+**Naming:** `run_onchange_after_<name>.sh.tmpl` in `.chezmoiscripts/`
+- Example: `.chezmoiscripts/run_onchange_after_update-claude-settings.sh.tmpl`
+
+**Execution:** Script runs after other chezmoi operations, whenever the rendered script content changes.
+
+**How it works:** Script reads from disk (`cat "$FILE"`), merges config, writes back to disk (`echo "$result" > "$FILE"`).
+
+**Use when:** Target directory is or may be a symlink, preventing chezmoi from managing individual files within it.
 
 ## Workflow: Implementing Non-Destructive Config Management
 
@@ -115,7 +138,7 @@ echo "$existing" | jq --argjson defaults "$defaults" \
 {{- end }}
 ```
 
-**CRITICAL:** Chezmoi provides file contents via **stdin**, not by file path. Always use `cat -` to read from stdin.
+**CRITICAL for modify_ scripts:** Chezmoi provides file contents via **stdin**, not by file path. Always use `cat -` to read from stdin. (Note: `run_onchange_` scripts read from disk instead - see the distinction in Core Concepts above.)
 
 **For YAML files, use `yq` instead of `jq`:**
 ```bash

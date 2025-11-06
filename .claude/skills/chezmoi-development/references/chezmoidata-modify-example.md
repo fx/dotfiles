@@ -1,6 +1,6 @@
 # Real-World Example: Claude Code Marketplace Configuration
 
-This is a complete, working example of using `.chezmoidata/` and `modify_` scripts to manage Claude Code's `settings.json` without overwriting user preferences.
+This is a complete, working example of using `.chezmoidata/` and `run_onchange_after_` scripts to manage Claude Code's `settings.json` without overwriting user preferences.
 
 ## The Problem
 
@@ -12,7 +12,7 @@ Need to configure Claude Code marketplace settings in dotfiles, but:
 
 ## The Solution
 
-Use `.chezmoidata/` to store configuration data, and a `modify_` script to merge it into existing settings.
+Use `.chezmoidata/` to store configuration data, and a `run_onchange_after_` script to merge it into existing settings.
 
 ### File Structure
 
@@ -31,7 +31,7 @@ Use `.chezmoidata/` to store configuration data, and a `modify_` script to merge
 ```yaml
 ---
 # Claude Code marketplace configuration
-# This data is merged into ~/.claude/settings.json via modify_ script
+# This data is merged into ~/.claude/settings.json via run_onchange_after_ script
 
 marketplace:
   extraKnownMarketplaces:
@@ -230,7 +230,7 @@ Output:
 ## Key Takeaways
 
 1. **`.chezmoidata/` for structured config** - Store configuration as YAML/JSON/TOML data
-2. **`modify_` scripts for merging** - Non-destructive updates to existing files
+2. **`run_onchange_after_` scripts for merging** - Non-destructive updates to existing files (use `modify_` when not dealing with symlinks)
 3. **`jq` for JSON merging** - Use `*` operator for recursive merge (right side wins)
 4. **Template guards** - Use `{{ if .include_defaults -}}` to control when scripts run
 5. **Prerequisite scripts** - Use `run_before_` to ensure dependencies exist

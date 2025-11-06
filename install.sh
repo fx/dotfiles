@@ -93,11 +93,23 @@ print_success "chezmoi installed"
 
 # Initialize dotfiles with selected profile
 print_step "Initializing dotfiles..."
-run_or_fail "Failed to initialize dotfiles" mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" 2>&1 | grep -v "Cloning into" | grep -v "^done\.$" || true
+# Capture output and filter noise while preserving exit status
+INIT_OUTPUT=$(mktemp)
+if mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" >"$INIT_OUTPUT" 2>&1; then
+    grep -v "Cloning into" "$INIT_OUTPUT" | grep -v "^done\.$" || true
+    rm -f "$INIT_OUTPUT"
+else
+    grep -v "Cloning into" "$INIT_OUTPUT" | grep -v "^done\.$" || true
+    rm -f "$INIT_OUTPUT"
+    print_error "Failed to initialize dotfiles"
+    exit 1
+fi
 print_success "Dotfiles initialized"
 
 # Apply the dotfiles (this automatically runs .chezmoiscripts)
 print_step "Applying dotfiles..."
+# --force is used because we've already cleared state above (lines 45-52)
+# This ensures a clean apply without prompts for conflicts
 run_or_fail "Failed to apply dotfiles" mise exec -- chezmoi apply --force
 print_success "Dotfiles applied"
 
