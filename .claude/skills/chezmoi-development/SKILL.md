@@ -562,6 +562,80 @@ if ! command -v jq &> /dev/null; then
 fi
 ```
 
+## Declarative Package Installation
+
+Chezmoi can install packages declaratively using a combination of `.chezmoidata/packages.yaml` and `run_onchange_` scripts. This pattern ensures packages are installed when the package list changes.
+
+### Pattern: npm Package Installation
+
+**1. Declare packages in `.chezmoidata/packages.yaml`:**
+```yaml
+---
+# Package declarations for declarative installation
+# Top-level keys become template variables (e.g., .npm, .apt, .brew)
+npm:
+  global:
+    - "@anthropic-ai/claude-code"
+    - "typescript"
+```
+
+**2. Create installation script `.chezmoiscripts/run_onchange_after_install-npm-packages.sh.tmpl`:**
+```bash
+#!/bin/bash
+# Install npm packages declaratively based on .chezmoidata/packages.yaml
+# This script runs when the package list changes
+
+{{ if .include_defaults -}}
+set -e
+
+# Function to run npm commands via mise
+run_npm() {
+    if command -v mise >/dev/null 2>&1; then
+        mise exec -- npm "$@"
+    else
+        npm "$@"
+    fi
+}
+
+# Check if npm is available (via mise or directly)
+if command -v mise >/dev/null 2>&1; then
+    if ! mise exec -- npm --version >/dev/null 2>&1; then
+        echo "⚠️  Node.js/npm not available via mise. Skipping npm package installation."
+        exit 0
+    fi
+elif ! command -v npm >/dev/null 2>&1; then
+    echo "⚠️  npm not found. Skipping npm package installation."
+    exit 0
+fi
+
+# Install global npm packages
+{{ if .npm.global -}}
+{{ range .npm.global -}}
+if ! run_npm list -g "{{ . }}" >/dev/null 2>&1; then
+    echo "📦 Installing {{ . }}..."
+    run_npm install -g "{{ . }}"
+    echo "✓ Installed {{ . }}"
+else
+    echo "✓ {{ . }} already installed"
+fi
+{{ end -}}
+{{ end -}}
+
+{{ end -}}
+```
+
+**How it works:**
+- The script template references `.npm.global` from `.chezmoidata/packages.yaml`
+- `run_onchange_` prefix means the script executes when its rendered content changes
+- When you add/remove packages in `packages.yaml`, the rendered script changes, triggering re-execution
+- Each package is checked before installation to avoid redundant installs
+- Uses `mise exec` to ensure npm is available from mise-managed Node.js
+
+**Adaptable to other package managers:**
+- apt: Create `.chezmoidata/packages.yaml` with `apt: [...]` and use `{{ range .apt }}`
+- brew: Create with `brew: [...]` and use `{{ range .brew }}`
+- pip: Create with `pip: [...]` and use `{{ range .pip }}`
+
 ## Reference Documentation
 
 For a complete, working example of this pattern, see:

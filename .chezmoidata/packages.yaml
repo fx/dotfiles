@@ -1,0 +1,7 @@
+---
+# Package declarations for declarative installation
+# Packages are installed via run_onchange scripts that execute when this file changes
+
+npm:
+  global:
+    - "@anthropic-ai/claude-code"
