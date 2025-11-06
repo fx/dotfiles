@@ -54,7 +54,7 @@ if command -v yq >/dev/null 2>&1 && [ -f "$HOME/.local/share/chezmoi/.chezmoidat
         while IFS= read -r package; do
             if [ -n "$package" ]; then
                 # npm list can exit non-zero due to warnings, so check the output instead
-                if ! run_npm list -g "$package" 2>&1 | grep -q "$package@"; then
+                if ! run_npm list -g "$package" 2>&1 | grep -qF "$package@"; then
                     echo "✗ npm package $package not installed"
                     exit 1
                 fi
@@ -64,7 +64,7 @@ if command -v yq >/dev/null 2>&1 && [ -f "$HOME/.local/share/chezmoi/.chezmoidat
     fi
 else
     # Fallback: Check known packages if yq is not available
-    if ! run_npm list -g @anthropic-ai/claude-code 2>&1 | grep -q "@anthropic-ai/claude-code@"; then
+    if ! run_npm list -g @anthropic-ai/claude-code 2>&1 | grep -qF "@anthropic-ai/claude-code@"; then
         echo "✗ @anthropic-ai/claude-code not installed"
         exit 1
     fi
