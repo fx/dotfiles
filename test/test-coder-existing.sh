@@ -4,7 +4,7 @@ set -e
 
 # Create existing ~/.claude with user content
 mkdir -p "$HOME/.claude"
-echo "user_settings" > "$HOME/.claude/settings.json"
+echo '{"alwaysThinkingEnabled":true,"userSetting":"value"}' > "$HOME/.claude/settings.json"
 echo "user_custom" > "$HOME/.claude/custom.txt"
 
 # Run setup
