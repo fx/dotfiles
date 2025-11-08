@@ -65,11 +65,11 @@ Visit https://github.com/settings/tokens/new and create a Personal Access Token 
 
 ## Claude Code Marketplace
 
-Claude Code plugins, skills, and agents are distributed via the `fx/cc` marketplace repository. The dotfiles automatically configure this marketplace for development.
+Claude Code plugins, skills, and agents are distributed via marketplaces. The dotfiles automatically configure two marketplaces: Anthropic's official `skills` marketplace and the custom `fx/cc` marketplace for development.
 
 ### How It Works
 
-1. **Automatic Configuration**: Dotfiles configure `fx/cc` marketplace via `~/.claude/settings.json`:
+1. **Automatic Configuration**: Dotfiles configure marketplaces via `~/.claude/settings.json`:
    - Marketplace configuration is stored in `.chezmoidata/claude.yaml`
    - A `modify_` script merges this config into existing settings.json (or creates it if missing)
    - User settings are preserved; only marketplace config and required settings are enforced
@@ -84,22 +84,37 @@ Claude Code plugins, skills, and agents are distributed via the `fx/cc` marketpl
            "source": "git",
            "url": "git@github.com:fx/cc.git"
          }
+       },
+       "anthropic-agent-skills": {
+         "source": {
+           "source": "github",
+           "repo": "anthropics/skills"
+         }
        }
+     },
+     "enabledPlugins": {
+       "fx-dev@fx-cc": true,
+       "fx-meta@fx-cc": true,
+       "example-skills@anthropic-agent-skills": true
      }
    }
    ```
 
-2. **Auto-Clone**: When you trust the workspace, Claude Code automatically clones the repository via SSH to:
-   - `~/.claude/plugins/marketplaces/fx-cc/`
-   - Full git repository with SSH remote
-   - Ready for development (commit, push, etc.)
+2. **Marketplace Types**:
+   - **`fx-cc`** (git source): Full git repository cloned via SSH to `~/.claude/plugins/marketplaces/fx-cc/` - ready for development with push access
+   - **`anthropic-agent-skills`** (github source): GitHub marketplace cloned to `~/.claude/plugins/marketplaces/anthropic-agent-skills/`
 
-3. **Plugin Discovery**: Use `/plugin marketplace list` to see available plugins
+3. **Pre-installed Plugins**: The following plugins are enabled by default:
+   - **fx-dev** from `fx-cc` - Complete development workflow and SDLC automation
+   - **fx-meta** from `fx-cc` - Meta tools for creating skills, plugins, and agents (TypeScript-based)
+   - **example-skills** from `anthropic-agent-skills` - Includes skill-creator, mcp-builder, canvas-design, and more
 
-4. **Installation**: Install desired plugins:
+4. **Plugin Discovery**: Use `/plugin marketplace list` to see available plugins
+
+5. **Installation**: Install additional plugins:
    ```bash
-   /plugin install fx-dev     # Development agents and commands
-   /plugin install fx-test    # Test plugin
+   /plugin install fx-research   # Research agents
+   /plugin install fx-test        # Test plugin
    ```
 
 ### Available Plugins
@@ -122,8 +137,28 @@ git commit -m "feat(fx-dev): improve coder agent"
 git push
 ```
 
+**Creating a new skill:**
+```bash
+# Use the skill-creator skill (enabled by default)
+# Simply say: "Create a new skill for [purpose]"
+# The skill-creator will guide you through the process
+
+# Example:
+# "Create a new skill for analyzing Python codebases"
+# The skill will be created in ~/.claude/skills/ following best practices
+```
+
 **Creating a new plugin:**
 ```bash
+# Use the plugin-creator skill from fx-dev (enabled by default)
+# Simply say: "Create a new plugin for [purpose]"
+# The skill will guide you through the entire process
+
+# Example:
+# "Create a new plugin for AWS deployment automation"
+# The plugin will be created in ~/.claude/plugins/marketplaces/fx-cc/plugins/
+
+# Manual creation (if needed):
 cd ~/.claude/plugins/marketplaces/fx-cc
 
 # Create plugin structure

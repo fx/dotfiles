@@ -8,9 +8,15 @@ marketplace:
       source:
         source: git
         url: git@github.com:fx/cc.git
+    anthropic-agent-skills:
+      source:
+        source: github
+        repo: anthropics/skills
 
 settings:
   includeCoAuthoredBy: false
   enableAllProjectMcpServers: true
   enabledPlugins:
     fx-dev@fx-cc: true
+    fx-meta@fx-cc: true
+    example-skills@anthropic-agent-skills: true
