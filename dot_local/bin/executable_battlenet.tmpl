@@ -1,0 +1,277 @@
+{{ if .is_desktop -}}
+#!/bin/bash
+# Launch Battle.net via Proton without Steam
+# Managed by github.com/fx/dotfiles
+#
+# Usage:
+#   battlenet              # Launch Battle.net
+#   battlenet wow          # Launch WoW directly
+#   battlenet d4           # Launch Diablo 4 directly
+#   battlenet --help       # Show help
+
+set -e
+
+# Battle.net product codes for --exec argument
+# Format: [alias]="product_code"
+declare -A GAME_PRODUCTS=(
+    [wow]="WoW"
+    [retail]="WoW"
+    [classic]="WoWC"
+    [wowc]="WoWC"
+    [era]="WoWClassicEra"
+    [d4]="OSI"
+    [diablo4]="OSI"
+    [diablo]="OSI"
+    [d3]="D3"
+    [diablo3]="D3"
+)
+
+# How long to wait for Battle.net to be ready (seconds)
+BNET_STARTUP_WAIT=15
+
+# Check if Battle.net is running
+is_battlenet_running() {
+    pgrep -f "Battle.net.exe" &>/dev/null
+}
+
+show_help() {
+    cat << 'EOF'
+Battle.net Launcher (Proton)
+
+Usage:
+    battlenet [game]
+
+Games:
+    wow, retail     World of Warcraft (Retail)
+    classic, wowc   World of Warcraft Classic
+    era             World of Warcraft Classic Era
+    d4, diablo4     Diablo 4
+    d3, diablo3     Diablo 3
+
+Options:
+    --help          Show this help
+    --debug         Show debug information
+
+Without arguments, launches Battle.net launcher.
+With a game argument, launches Battle.net with --exec to start the game.
+EOF
+}
+
+# Steam library locations to search
+STEAM_PATHS=(
+    "$HOME/.local/share/Steam"
+    "$HOME/.steam/steam"
+    "/mnt/d/SteamLibrary"
+)
+
+# Find Steam root by checking libraryfolders.vdf
+find_steam_root() {
+    for path in "${STEAM_PATHS[@]}"; do
+        if [[ -f "$path/config/libraryfolders.vdf" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Parse libraryfolders.vdf to get all library paths
+get_library_paths() {
+    local steam_root="$1"
+    local vdf="$steam_root/config/libraryfolders.vdf"
+
+    # Extract paths from VDF
+    grep '"path"' "$vdf" | sed 's/.*"\([^"]*\)"/\1/' | while read -r path; do
+        echo "$path"
+    done
+}
+
+# Find Battle.net prefix (compatdata directory with Battle.net.exe)
+find_battlenet_prefix() {
+    local steam_root="$1"
+
+    # Search in all library paths
+    while IFS= read -r lib_path; do
+        local compatdata="$lib_path/steamapps/compatdata"
+        if [[ -d "$compatdata" ]]; then
+            for prefix_dir in "$compatdata"/*/; do
+                local bnet_exe="$prefix_dir/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe"
+                if [[ -f "$bnet_exe" ]]; then
+                    echo "$prefix_dir"
+                    return 0
+                fi
+            done
+        fi
+    done < <(get_library_paths "$steam_root")
+
+    return 1
+}
+
+# Find Proton installation
+find_proton() {
+    local steam_root="$1"
+    local proton_path=""
+
+    # Search in all library paths for Proton
+    while IFS= read -r lib_path; do
+        local common="$lib_path/steamapps/common"
+        # Prefer Proton Experimental
+        if [[ -f "$common/Proton - Experimental/proton" ]]; then
+            echo "$common/Proton - Experimental"
+            return 0
+        fi
+        # Fall back to numbered versions (prefer newest)
+        for proton_dir in "$common"/Proton\ [0-9]*/; do
+            if [[ -f "${proton_dir}proton" ]]; then
+                proton_path="$proton_dir"
+            fi
+        done
+    done < <(get_library_paths "$steam_root")
+
+    if [[ -n "$proton_path" ]]; then
+        echo "${proton_path%/}"
+        return 0
+    fi
+
+    return 1
+}
+
+# Main
+DEBUG=0
+GAME=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        --debug)
+            DEBUG=1
+            shift
+            ;;
+        *)
+            GAME="${1,,}"  # lowercase
+            shift
+            ;;
+    esac
+done
+
+# Find paths
+STEAM_ROOT=$(find_steam_root) || {
+    echo "Error: Could not find Steam installation"
+    exit 1
+}
+
+BNET_PREFIX=$(find_battlenet_prefix "$STEAM_ROOT") || {
+    echo "Error: Could not find Battle.net installation"
+    echo "Install Battle.net as a non-Steam game first"
+    exit 1
+}
+
+PROTON_PATH=$(find_proton "$STEAM_ROOT") || {
+    echo "Error: Could not find Proton installation"
+    exit 1
+}
+
+BNET_EXE="$BNET_PREFIX/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe"
+
+if [[ $DEBUG -eq 1 ]]; then
+    echo "Steam root:    $STEAM_ROOT"
+    echo "Battle.net:    $BNET_PREFIX"
+    echo "Proton:        $PROTON_PATH"
+    echo "Executable:    $BNET_EXE"
+fi
+
+# Determine launch arguments
+BNET_ARGS=()
+if [[ -n "$GAME" ]]; then
+    if [[ -v "GAME_PRODUCTS[$GAME]" ]]; then
+        PRODUCT="${GAME_PRODUCTS[$GAME]}"
+        BNET_ARGS+=("--exec=launch $PRODUCT")
+        echo "Launching $GAME via Battle.net..."
+    else
+        echo "Unknown game: $GAME"
+        echo "Run 'battlenet --help' for available games"
+        exit 1
+    fi
+else
+    echo "Launching Battle.net..."
+fi
+
+# Get app ID from prefix directory
+APP_ID=$(basename "$BNET_PREFIX")
+
+# Set up Proton environment
+export STEAM_COMPAT_DATA_PATH="$BNET_PREFIX"
+export STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT"
+export SteamAppId="${APP_ID}"
+export SteamGameId="${APP_ID}"
+export STEAM_COMPAT_APP_ID="${APP_ID}"
+
+# RTX 4000+ performance fix
+export PROTON_NVIDIA_LIBS_NO_32BIT=1
+
+# Find Steam Linux Runtime (sniper) for library compatibility
+SNIPER_PATH=""
+while IFS= read -r lib_path; do
+    if [[ -d "$lib_path/steamapps/common/SteamLinuxRuntime_sniper" ]]; then
+        SNIPER_PATH="$lib_path/steamapps/common/SteamLinuxRuntime_sniper"
+        break
+    fi
+done < <(get_library_paths "$STEAM_ROOT")
+
+# Additional paths Proton expects
+export STEAM_COMPAT_LIBRARY_PATHS="$STEAM_ROOT"
+export STEAM_COMPAT_INSTALL_PATH="$BNET_PREFIX"
+
+# Function to run Battle.net with optional arguments
+run_battlenet() {
+    local args=("$@")
+    if [[ -n "$SNIPER_PATH" && -x "$SNIPER_PATH/run" ]]; then
+        if [[ $DEBUG -eq 1 ]]; then
+            echo "Runtime:       $SNIPER_PATH"
+            echo "Arguments:     ${args[*]}"
+            echo "Using pressure-vessel container"
+        fi
+        "$SNIPER_PATH/run" -- "$PROTON_PATH/proton" run "$BNET_EXE" "${args[@]}" &
+    else
+        if [[ $DEBUG -eq 1 ]]; then
+            echo "Warning: Steam runtime not found, running directly"
+            echo "Arguments:     ${args[*]}"
+        fi
+        "$PROTON_PATH/proton" run "$BNET_EXE" "${args[@]}" &
+    fi
+}
+
+# If launching a game and Battle.net isn't running, start it first
+if [[ -n "$GAME" ]] && ! is_battlenet_running; then
+    echo "Starting Battle.net first..."
+    run_battlenet
+
+    # Wait for Battle.net to be ready
+    echo "Waiting for Battle.net to initialize (${BNET_STARTUP_WAIT}s)..."
+    sleep "$BNET_STARTUP_WAIT"
+
+    if ! is_battlenet_running; then
+        echo "Error: Battle.net failed to start"
+        exit 1
+    fi
+fi
+
+# Launch with arguments (or just start if no game specified)
+if [[ ${#BNET_ARGS[@]} -gt 0 ]]; then
+    run_battlenet "${BNET_ARGS[@]}"
+else
+    # No game specified - just launch Battle.net if not already running
+    if is_battlenet_running; then
+        echo "Battle.net is already running"
+    else
+        run_battlenet
+    fi
+fi
+
+# Wait briefly for the command to be sent
+sleep 1
+{{ end -}}
