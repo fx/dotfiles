@@ -1,0 +1,30 @@
+#!/bin/bash
+# Managed by github.com/fx/dotfiles
+# Volume control for Stream Deck encoder
+# Usage: volume-control <ticks>  - adjust by ticks (negative = down)
+#        volume-control mute     - toggle mute
+
+SINK="@DEFAULT_AUDIO_SINK@"
+
+case "$1" in
+    mute)
+        wpctl set-mute "$SINK" toggle
+        ;;
+    *)
+        # Adjust volume by ticks (each tick = 2%)
+        ticks="${1:-0}"
+        if [ "$ticks" -ne 0 ]; then
+            change=$((ticks * 2))
+            if [ "$change" -gt 0 ]; then
+                wpctl set-volume "$SINK" "${change}%+"
+            else
+                wpctl set-volume "$SINK" "${change#-}%-"
+            fi
+        fi
+        ;;
+esac
+
+# Output current volume for display
+vol=$(wpctl get-volume "$SINK" 2>/dev/null | awk '{printf "%.0f", $2 * 100}')
+muted=$(wpctl get-volume "$SINK" 2>/dev/null | grep -q MUTED && echo "M" || echo "")
+echo "${muted}${vol}%"

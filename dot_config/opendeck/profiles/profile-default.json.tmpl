@@ -1,0 +1,88 @@
+{
+  "keys": [
+    {
+      "action": {
+        "name": "Run Command",
+        "uuid": "com.amansprojects.starterpack.runcommand",
+        "plugin": "com.amansprojects.starterpack.sdPlugin",
+        "tooltip": "Run a command",
+        "icon": "icons/runCommand",
+        "disable_automatic_states": false,
+        "visible_in_action_list": true,
+        "supported_in_multi_actions": true,
+        "property_inspector": "propertyInspector/runCommand.html",
+        "controllers": ["Keypad", "Encoder"],
+        "states": [{"Image": "actionDefaultImage"}, {"Image": "actionDefaultImage"}]
+      },
+      "context": "DEVICE.Default.Keypad.0.0",
+      "states": [
+        {
+          "image": "0.png",
+          "name": "Speakers",
+          "text": "",
+          "show": false,
+          "colour": "#ffffff"
+        },
+        {
+          "image": "1.png",
+          "name": "Headphones",
+          "text": "",
+          "show": false,
+          "colour": "#ffffff"
+        }
+      ],
+      "current_state": 0,
+      "settings": {
+        "down": "{{ .chezmoi.homeDir }}/.local/bin/audio-toggle",
+        "up": "",
+        "show": false
+      },
+      "children": null
+    },
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "sliders": [
+    {
+      "action": {
+        "name": "Run Command",
+        "uuid": "com.amansprojects.starterpack.runcommand",
+        "plugin": "com.amansprojects.starterpack.sdPlugin",
+        "tooltip": "Run a command",
+        "icon": "icons/runCommand",
+        "disable_automatic_states": false,
+        "visible_in_action_list": true,
+        "supported_in_multi_actions": true,
+        "property_inspector": "propertyInspector/runCommand.html",
+        "controllers": ["Keypad", "Encoder"],
+        "states": [{"Image": "actionDefaultImage"}]
+      },
+      "context": "DEVICE.Default.Encoder.0.0",
+      "states": [
+        {
+          "image": "0.png",
+          "name": "Volume",
+          "text": "",
+          "show": true,
+          "colour": "#e78a4e"
+        }
+      ],
+      "current_state": 0,
+      "settings": {
+        "down": "{{ .chezmoi.homeDir }}/.local/bin/volume-control mute",
+        "up": "",
+        "rotate": "{{ .chezmoi.homeDir }}/.local/bin/volume-control %d",
+        "show": true
+      },
+      "children": null
+    },
+    null,
+    null,
+    null
+  ]
+}

@@ -1,0 +1,48 @@
+#!/bin/bash
+# Configure OpenDeck profiles based on device serial
+# Only runs on desktop profile
+
+{{ if and .include_defaults .is_desktop -}}
+set -e
+
+DEVICE_SERIAL="{{ .opendeck.device_serial }}"
+PROFILE_DIR="$HOME/.config/opendeck/profiles/$DEVICE_SERIAL"
+SOURCE_PROFILE="$HOME/.config/opendeck/profiles/profile-default.json"
+
+# Only configure if OpenDeck is installed and profile source exists
+if [ ! -f "$SOURCE_PROFILE" ]; then
+    echo "OpenDeck profile source not found, skipping"
+    exit 0
+fi
+
+# Create device profile directory
+mkdir -p "$PROFILE_DIR"
+
+# Create device config if missing
+DEVICE_CONFIG="$HOME/.config/opendeck/profiles/$DEVICE_SERIAL.json"
+if [ ! -f "$DEVICE_CONFIG" ]; then
+    echo '{"selected_profile": "Default"}' > "$DEVICE_CONFIG"
+fi
+
+# Deploy profile with device serial substituted in context fields
+sed "s/DEVICE/$DEVICE_SERIAL/g" "$SOURCE_PROFILE" > "$PROFILE_DIR/Default.json"
+
+# Deploy button icons to images directory
+ICONS_DIR="$HOME/.config/opendeck/icons"
+KEYPAD_IMAGES="$HOME/.config/opendeck/images/$DEVICE_SERIAL/Default/Keypad.0.0"
+ENCODER_IMAGES="$HOME/.config/opendeck/images/$DEVICE_SERIAL/Default/Encoder.0.0"
+if [ -d "$ICONS_DIR" ]; then
+    # Keypad button: State 0 = speakers, State 1 = headphones
+    mkdir -p "$KEYPAD_IMAGES"
+    [ -f "$ICONS_DIR/speakers.png" ] && cp "$ICONS_DIR/speakers.png" "$KEYPAD_IMAGES/0.png"
+    [ -f "$ICONS_DIR/headphones.png" ] && cp "$ICONS_DIR/headphones.png" "$KEYPAD_IMAGES/1.png"
+    # Encoder knob: volume icon
+    mkdir -p "$ENCODER_IMAGES"
+    [ -f "$ICONS_DIR/volume.png" ] && cp "$ICONS_DIR/volume.png" "$ENCODER_IMAGES/0.png"
+fi
+
+echo "OpenDeck profile configured for device $DEVICE_SERIAL"
+
+{{ else -}}
+# Not a desktop profile, skip OpenDeck configuration
+{{ end -}}

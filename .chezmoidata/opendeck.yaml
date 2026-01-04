@@ -1,0 +1,6 @@
+# OpenDeck Stream Deck configuration
+# Device serial from: ls ~/.config/opendeck/profiles/
+
+opendeck:
+  # Stream Deck Plus device serial (find via: ls ~/.config/opendeck/profiles/)
+  device_serial: "sd-A00WA3141NXJWJ"

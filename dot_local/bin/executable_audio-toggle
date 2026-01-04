@@ -1,0 +1,22 @@
+#!/bin/bash
+# Managed by github.com/fx/dotfiles
+# Toggle between HDMI and Schiit Magni audio output
+
+HDMI="alsa_output.pci-0000_01_00.1.hdmi-stereo"
+MAGNI="alsa_output.usb-Schiit_Audio_Schiit_Magni_Unity-00.analog-stereo"
+STATE_FILE="$HOME/.local/state/audio-output"
+
+mkdir -p "$(dirname "$STATE_FILE")"
+
+# Get current default sink
+current=$(pactl get-default-sink)
+
+if [ "$current" = "$MAGNI" ]; then
+    pactl set-default-sink "$HDMI"
+    echo "speakers" > "$STATE_FILE"
+    echo "🔊"
+else
+    pactl set-default-sink "$MAGNI"
+    echo "headphones" > "$STATE_FILE"
+    echo "🎧"
+fi
