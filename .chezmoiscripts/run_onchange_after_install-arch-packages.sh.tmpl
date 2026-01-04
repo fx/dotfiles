@@ -1,0 +1,77 @@
+#!/bin/bash
+# Install Arch Linux packages declaratively based on .chezmoidata/packages.yaml
+# This script runs when the package list changes
+# Only runs on desktop profile (Arch Linux)
+
+{{ if and .include_defaults .is_desktop -}}
+set -e
+
+# Check if paru is available
+if ! command -v paru >/dev/null 2>&1; then
+    echo "paru not found. Please install paru first:"
+    echo "  git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
+    exit 1
+fi
+
+# Update system first
+echo "Updating system..."
+paru -Syu --noconfirm
+
+# Collect missing packages
+missing_packages=""
+{{ if .arch.packages -}}
+{{ range .arch.packages -}}
+if ! pacman -Q "{{ . }}" >/dev/null 2>&1; then
+    missing_packages="$missing_packages {{ . }}"
+fi
+{{ end -}}
+{{ end -}}
+
+# Install missing packages
+if [ -n "$missing_packages" ]; then
+    echo "Installing Arch packages:$missing_packages"
+    paru -S --needed --noconfirm $missing_packages
+    echo "Arch packages installed"
+else
+    echo "All Arch packages already installed"
+fi
+
+# Enable services
+if pacman -Q tailscale >/dev/null 2>&1; then
+    if ! systemctl is-enabled tailscaled >/dev/null 2>&1; then
+        echo "Enabling tailscaled service..."
+        sudo systemctl enable --now tailscaled
+    fi
+fi
+
+# Device-conditional packages (installed when USB device is detected)
+{{ if .arch.device_packages -}}
+echo "Checking for device-conditional packages..."
+usb_devices=$(lsusb 2>/dev/null | grep -oE '[0-9a-f]{4}:[0-9a-f]{4}' || true)
+
+device_missing_packages=""
+{{ range .arch.device_packages -}}
+{{ $pkg := .name -}}
+# Check for {{ $pkg }}
+{{ range .usb_ids -}}
+if echo "$usb_devices" | grep -qi "{{ . }}"; then
+    if ! pacman -Q "{{ $pkg }}" >/dev/null 2>&1; then
+        echo "Detected USB device {{ . }}, will install {{ $pkg }}"
+        device_missing_packages="$device_missing_packages {{ $pkg }}"
+    fi
+fi
+{{ end -}}
+{{ end -}}
+
+if [ -n "$device_missing_packages" ]; then
+    echo "Installing device-conditional packages:$device_missing_packages"
+    paru -S --needed --noconfirm $device_missing_packages
+    echo "Device-conditional packages installed"
+else
+    echo "No device-conditional packages to install"
+fi
+{{ end -}}
+
+{{ else -}}
+# Not a desktop profile, skip Arch package installation
+{{ end -}}
