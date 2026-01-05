@@ -16,3 +16,13 @@ shared/
 # .claude directory is managed by run_onchange_after_update-claude-settings.sh script
 # Not by chezmoi's file management (allows symlinks to work in Coder)
 .claude
+
+# Desktop-only files (ignored on non-desktop profiles)
+{{ if not .is_desktop }}
+.config/hypr/
+.config/opendeck/
+.local/bin/audio-toggle
+.local/bin/volume-control
+.local/bin/ha-light
+.local/bin/battlenet
+{{ end }}

@@ -4,7 +4,16 @@ set -e
 # Dotfiles installer script
 # Usage: curl -sSL fx.github.io/dotfiles/install.sh | sh -s -- [profile]
 
-PROFILE="${DOTFILES_PROFILE:-${1:-default}}"
+# Auto-detect desktop profile if not specified
+if [ -n "$1" ]; then
+    PROFILE="$1"
+elif [ -n "$DOTFILES_PROFILE" ]; then
+    PROFILE="$DOTFILES_PROFILE"
+elif command -v hyprctl >/dev/null 2>&1; then
+    PROFILE="desktop"
+else
+    PROFILE="default"
+fi
 DOTFILES_REPO="fx/dotfiles"
 MISE_INSTALL_URL="https://mise.jdx.dev/install.sh"
 
@@ -53,8 +62,9 @@ fi
 
 # Detect if we're running from within the dotfiles repository
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_MODE=false
 if [ -f "$SCRIPT_DIR/.chezmoiignore" ] && [ -d "$SCRIPT_DIR/.chezmoiscripts" ]; then
-    DOTFILES_URL="$SCRIPT_DIR"
+    LOCAL_MODE=true
     print_success "Using local dotfiles repository at $SCRIPT_DIR"
 else
     # Test git SSH access by attempting to ls-remote
@@ -91,26 +101,50 @@ print_step "Installing chezmoi..."
 run_or_fail "Failed to install chezmoi" mise use -g chezmoi@latest
 print_success "chezmoi installed"
 
-# Initialize dotfiles with selected profile
-print_step "Initializing dotfiles..."
-# Capture output and filter noise while preserving exit status
-INIT_OUTPUT=$(mktemp)
-if mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" >"$INIT_OUTPUT" 2>&1; then
-    grep -v "Cloning into" "$INIT_OUTPUT" | grep -v "^done\.$" || true
-    rm -f "$INIT_OUTPUT"
-else
-    grep -v "Cloning into" "$INIT_OUTPUT" | grep -v "^done\.$" || true
-    rm -f "$INIT_OUTPUT"
-    print_error "Failed to initialize dotfiles"
-    exit 1
-fi
-print_success "Dotfiles initialized"
+# Initialize and apply dotfiles
+if [ "$LOCAL_MODE" = true ]; then
+    # Local dev mode: use --source to apply directly from working tree
+    print_step "Configuring for local development..."
 
-# Apply the dotfiles (this automatically runs .chezmoiscripts)
-print_step "Applying dotfiles..."
-# --force is used because we've already cleared state above (lines 45-52)
-# This ensures a clean apply without prompts for conflicts
-run_or_fail "Failed to apply dotfiles" mise exec -- chezmoi apply --force
+    # Generate chezmoi config with profile settings
+    CHEZMOI_CONFIG="$HOME/.config/chezmoi/chezmoi.toml"
+    mkdir -p "$(dirname "$CHEZMOI_CONFIG")"
+
+    IS_DESKTOP=false
+    [ "$PROFILE" = "desktop" ] && IS_DESKTOP=true
+
+    cat > "$CHEZMOI_CONFIG" << EOF
+[data]
+    profile = "$PROFILE"
+    include_defaults = true
+    is_desktop = $IS_DESKTOP
+
+[diff]
+    pager = "less"
+EOF
+    print_success "Configuration ready"
+
+    # Apply directly from local source
+    print_step "Applying dotfiles..."
+    run_or_fail "Failed to apply dotfiles" mise exec -- chezmoi apply --source="$SCRIPT_DIR" --force
+else
+    # Remote mode: use chezmoi init + apply
+    print_step "Initializing dotfiles..."
+    INIT_OUTPUT=$(mktemp)
+    if mise exec -- chezmoi init --promptString profile="$PROFILE" "$DOTFILES_URL" >"$INIT_OUTPUT" 2>&1; then
+        grep -v "Cloning into" "$INIT_OUTPUT" | grep -v "^done\.$" || true
+        rm -f "$INIT_OUTPUT"
+    else
+        grep -v "Cloning into" "$INIT_OUTPUT" | grep -v "^done\.$" || true
+        rm -f "$INIT_OUTPUT"
+        print_error "Failed to initialize dotfiles"
+        exit 1
+    fi
+    print_success "Dotfiles initialized"
+
+    print_step "Applying dotfiles..."
+    run_or_fail "Failed to apply dotfiles" mise exec -- chezmoi apply --force
+fi
 print_success "Dotfiles applied"
 
 echo ""
