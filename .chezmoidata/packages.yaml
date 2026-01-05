@@ -5,3 +5,13 @@
 npm:
   global:
     - "@anthropic-ai/claude-code"
+
+# Arch Linux packages (desktop profile only)
+arch:
+  packages:
+    - tailscale
+    - hyprshot
+  device_packages:
+    - name: opendeck-bin
+      usb_ids:
+        - "0fd9:0084"  # Stream Deck Plus

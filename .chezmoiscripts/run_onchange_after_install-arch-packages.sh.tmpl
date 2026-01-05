@@ -4,18 +4,18 @@
 # Only runs on desktop profile (Arch Linux)
 
 {{ if and .include_defaults .is_desktop -}}
-set -e
+# Note: No set -e - package failures shouldn't break dotfiles install
 
 # Check if paru is available
 if ! command -v paru >/dev/null 2>&1; then
     echo "paru not found. Please install paru first:"
     echo "  git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
-    exit 1
+    exit 0  # Don't fail install, just skip
 fi
 
-# Update system first
+# Update system (pacman only, skip AUR to avoid long builds)
 echo "Updating system..."
-paru -Syu --noconfirm
+sudo pacman -Syu --noconfirm || echo "Warning: System update had issues, continuing..."
 
 # Collect missing packages
 missing_packages=""
@@ -65,8 +65,11 @@ fi
 
 if [ -n "$device_missing_packages" ]; then
     echo "Installing device-conditional packages:$device_missing_packages"
-    paru -S --needed --noconfirm $device_missing_packages
-    echo "Device-conditional packages installed"
+    if ! paru -S --needed --noconfirm $device_missing_packages; then
+        echo "Warning: Some device packages failed to install (possibly AUR issues)"
+    else
+        echo "Device-conditional packages installed"
+    fi
 else
     echo "No device-conditional packages to install"
 fi
