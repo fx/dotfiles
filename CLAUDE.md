@@ -2,6 +2,24 @@
 
 **⚠️ WARNING: This is a PUBLIC repository! Never commit personal information, credentials, API keys, or proprietary content to this repository.**
 
+## Running Dotfiles
+
+**CRITICAL: NEVER run `chezmoi` directly. ALWAYS use `./install.sh` to apply changes.**
+
+```bash
+# Correct - always use this:
+./install.sh
+
+# WRONG - never do this:
+chezmoi apply  # NO!
+```
+
+The install script handles chezmoi installation, profile detection, and proper initialization. Running chezmoi directly will fail or produce incorrect results.
+
+## Git Commits
+
+**NEVER automatically commit changes to this repository.** Always wait for explicit user approval before committing. Present the changes and ask if they should be committed.
+
 ## Installation Hierarchy
 
 1. **chezmoi first**: Always use chezmoi for installations and configuration management
@@ -170,6 +188,70 @@ Claude Code automatically manages marketplace updates. The repository in `~/.cla
 - Uses existing gh CLI authentication for SSH keys
 - Repository is owned by you and fully under your control
 - Never commit sensitive data to plugin repositories
+
+## Home Assistant Integration (Desktop Profile)
+
+The OpenDeck Stream Deck configuration includes Home Assistant integration for controlling lights via the second encoder knob.
+
+For OpenDeck profile format details (encoder context format, button layout), see `dot_config/opendeck/README.md`.
+
+### Credentials Storage
+
+**IMPORTANT**: Home Assistant credentials are stored locally and are NOT managed by chezmoi or committed to the repository.
+
+Credentials are stored at: `~/.config/home-assistant/credentials`
+
+This file contains:
+```bash
+HA_URL="http://your-ha-instance:8123"
+HA_TOKEN="your_long_lived_access_token"
+HA_LIGHT_ENTITY="light.your_light_entity"
+```
+
+### Setup
+
+During `chezmoi apply`, you'll be prompted for Home Assistant credentials if not already configured:
+
+1. **Home Assistant URL**: Your HA instance URL (e.g., `http://192.168.1.100:8123`)
+2. **Long-lived access token**: Create one in HA under Profile → Long-Lived Access Tokens
+3. **Light entity ID**: The entity you want to control (e.g., `light.office`)
+
+You can skip the prompt (Ctrl+C) and configure later by creating the credentials file manually.
+
+### Stream Deck Controls
+
+- **Encoder 1 (left)**: Volume control - rotate to adjust, press to mute
+- **Encoder 2**: Light control - rotate to dim, press to toggle on/off
+
+### Manual Configuration
+
+If you skipped the interactive setup or need to update credentials:
+
+```bash
+mkdir -p ~/.config/home-assistant
+cat > ~/.config/home-assistant/credentials << 'EOF'
+HA_URL="http://your-ha-instance:8123"
+HA_TOKEN="your_long_lived_access_token"
+HA_LIGHT_ENTITY="light.your_light_entity"
+EOF
+chmod 600 ~/.config/home-assistant/credentials
+```
+
+### Getting a Long-Lived Access Token
+
+1. Open your Home Assistant instance
+2. Click your profile (bottom left)
+3. Scroll to "Long-Lived Access Tokens"
+4. Click "Create Token"
+5. Give it a name (e.g., "Stream Deck")
+6. Copy the token immediately (it won't be shown again)
+
+### Security Notes
+
+- Credentials file has 600 permissions (owner read/write only)
+- The `~/.config/home-assistant/` directory is NOT managed by chezmoi
+- Never commit credentials to any repository
+- The token grants full API access to your HA instance - keep it secure
 
 ## Testing
 

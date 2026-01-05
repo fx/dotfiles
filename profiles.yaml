@@ -21,3 +21,19 @@ profiles:
       - npm (via mise)
     packages:
       - none (Claude Code should be installed separately)
+
+  desktop:
+    description: Desktop profile for CachyOS/Arch Linux with Hyprland
+    include_defaults: true
+    is_desktop: true
+    features:
+      - claude marketplace configuration
+      - Hyprland window manager config
+      - OpenDeck Stream Deck support
+      - Home Assistant integration
+      - Arch package management
+    tools:
+      - node (via mise)
+      - npm (via mise)
+    packages:
+      - declarative via .chezmoidata/packages.yaml
