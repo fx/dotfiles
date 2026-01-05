@@ -1,0 +1,76 @@
+#!/bin/bash
+# Setup Home Assistant credentials for OpenDeck integration
+# Only runs on desktop profile, prompts if credentials missing
+
+{{ if and .include_defaults .is_desktop -}}
+set -e
+
+CREDS_DIR="$HOME/.config/home-assistant"
+CREDS_FILE="$CREDS_DIR/credentials"
+
+# Skip if credentials already exist
+if [ -f "$CREDS_FILE" ]; then
+    echo "Home Assistant credentials already configured"
+    exit 0
+fi
+
+# Check if we can prompt interactively
+# Try stdin first, then /dev/tty as fallback for piped scenarios
+if [ -t 0 ]; then
+    TTY_INPUT="/dev/stdin"
+elif [ -c /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    # Verify /dev/tty is actually usable
+    if ! echo "" > /dev/tty 2>/dev/null; then
+        echo "Home Assistant: Skipping (no interactive terminal available)"
+        echo "Create manually: ~/.config/home-assistant/credentials"
+        exit 0
+    fi
+    TTY_INPUT="/dev/tty"
+else
+    echo "Home Assistant: Skipping (no interactive terminal available)"
+    echo "Create manually: ~/.config/home-assistant/credentials"
+    exit 0
+fi
+
+echo ""
+echo "=== Home Assistant Setup ==="
+echo "Configure Home Assistant integration for Stream Deck light control."
+echo "You'll need a long-lived access token from HA."
+echo "(Press Ctrl+C to skip and configure later)"
+echo ""
+
+read -p "Home Assistant URL (e.g., http://192.168.1.100:8123): " ha_url < "$TTY_INPUT"
+if [ -z "$ha_url" ]; then
+    echo "Skipped Home Assistant setup"
+    exit 0
+fi
+
+read -p "Long-lived access token: " ha_token < "$TTY_INPUT"
+if [ -z "$ha_token" ]; then
+    echo "Skipped Home Assistant setup"
+    exit 0
+fi
+
+read -p "Light entity ID (e.g., light.office): " ha_entity < "$TTY_INPUT"
+if [ -z "$ha_entity" ]; then
+    echo "Skipped Home Assistant setup"
+    exit 0
+fi
+
+# Create credentials file
+mkdir -p "$CREDS_DIR"
+cat > "$CREDS_FILE" << EOF
+# Home Assistant credentials for OpenDeck integration
+# This file is NOT managed by chezmoi - edit directly if needed
+
+HA_URL="$ha_url"
+HA_TOKEN="$ha_token"
+HA_LIGHT_ENTITY="$ha_entity"
+EOF
+
+chmod 600 "$CREDS_FILE"
+echo "Home Assistant credentials saved to $CREDS_FILE"
+
+{{ else -}}
+# Not a desktop profile, skip Home Assistant setup
+{{ end -}}

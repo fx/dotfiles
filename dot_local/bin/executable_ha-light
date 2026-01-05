@@ -1,0 +1,86 @@
+#!/bin/bash
+# Managed by github.com/fx/dotfiles
+# Home Assistant light control for Stream Deck encoder
+# Usage: ha-light toggle    - toggle light on/off
+#        ha-light <ticks>   - adjust brightness by ticks (negative = dimmer)
+
+CREDS_FILE="$HOME/.config/home-assistant/credentials"
+
+# Load credentials
+if [ ! -f "$CREDS_FILE" ]; then
+    echo "ERR"
+    exit 1
+fi
+
+source "$CREDS_FILE"
+
+# Strip trailing slash from URL if present
+HA_URL="${HA_URL%/}"
+
+if [ -z "$HA_URL" ] || [ -z "$HA_TOKEN" ] || [ -z "$HA_LIGHT_ENTITY" ]; then
+    echo "CFG"
+    exit 1
+fi
+
+# Helper to call HA API
+ha_api() {
+    local method="$1"
+    local endpoint="$2"
+    local data="$3"
+
+    curl -s -X "$method" \
+        -H "Authorization: Bearer $HA_TOKEN" \
+        -H "Content-Type: application/json" \
+        ${data:+-d "$data"} \
+        "$HA_URL/api/$endpoint"
+}
+
+# Get current light state
+get_state() {
+    ha_api GET "states/$HA_LIGHT_ENTITY"
+}
+
+case "$1" in
+    toggle)
+        ha_api POST "services/light/toggle" "{\"entity_id\": \"$HA_LIGHT_ENTITY\"}" >/dev/null
+        sleep 0.2  # Brief delay for state update
+        ;;
+    *)
+        # Adjust brightness by ticks (each tick = 5%)
+        ticks="${1:-0}"
+        if [ "$ticks" -ne 0 ] 2>/dev/null; then
+            state=$(get_state)
+            current_brightness=$(echo "$state" | jq -r '.attributes.brightness // 0')
+            is_on=$(echo "$state" | jq -r '.state')
+
+            # Convert 0-255 to percentage, adjust, convert back
+            if [ "$is_on" = "on" ] && [ "$current_brightness" -gt 0 ]; then
+                pct=$((current_brightness * 100 / 255))
+                change=$((ticks * 5))
+                new_pct=$((pct + change))
+
+                # Clamp to 1-100
+                [ "$new_pct" -lt 1 ] && new_pct=1
+                [ "$new_pct" -gt 100 ] && new_pct=100
+
+                new_brightness=$((new_pct * 255 / 100))
+                ha_api POST "services/light/turn_on" "{\"entity_id\": \"$HA_LIGHT_ENTITY\", \"brightness\": $new_brightness}" >/dev/null
+            elif [ "$is_on" = "off" ] && [ "$ticks" -gt 0 ]; then
+                # Turn on at low brightness when rotating up from off
+                ha_api POST "services/light/turn_on" "{\"entity_id\": \"$HA_LIGHT_ENTITY\", \"brightness\": 64}" >/dev/null
+            fi
+            sleep 0.1
+        fi
+        ;;
+esac
+
+# Output current state for display
+state=$(get_state)
+is_on=$(echo "$state" | jq -r '.state')
+if [ "$is_on" = "on" ]; then
+    brightness=$(echo "$state" | jq -r '.attributes.brightness // 255')
+    pct=$((brightness * 100 / 255))
+    echo "${pct}%"
+else
+    echo "OFF"
+fi
