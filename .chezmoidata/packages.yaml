@@ -15,3 +15,9 @@ arch:
     - name: opendeck-bin
       usb_ids:
         - "0fd9:0084"  # Stream Deck Plus
+  # GPU-conditional packages (installed when NVIDIA GPU is detected via lspci)
+  gpu_packages:
+    nvidia:
+      - docker
+      - docker-compose
+      - nvidia-container-toolkit

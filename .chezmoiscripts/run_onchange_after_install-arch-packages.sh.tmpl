@@ -75,6 +75,57 @@ else
 fi
 {{ end -}}
 
+# GPU-conditional packages (NVIDIA)
+{{ if .arch.gpu_packages.nvidia -}}
+echo "Checking for NVIDIA GPU..."
+if lspci 2>/dev/null | grep -qi "nvidia"; then
+    echo "NVIDIA GPU detected"
+    gpu_missing_packages=""
+    {{ range .arch.gpu_packages.nvidia -}}
+    if ! pacman -Q "{{ . }}" >/dev/null 2>&1; then
+        gpu_missing_packages="$gpu_missing_packages {{ . }}"
+    fi
+    {{ end -}}
+
+    if [ -n "$gpu_missing_packages" ]; then
+        echo "Installing NVIDIA GPU packages:$gpu_missing_packages"
+        if paru -S --needed --noconfirm $gpu_missing_packages; then
+            echo "NVIDIA GPU packages installed"
+
+            # Enable docker service
+            if pacman -Q docker >/dev/null 2>&1; then
+                if ! systemctl is-enabled docker >/dev/null 2>&1; then
+                    echo "Enabling docker service..."
+                    sudo systemctl enable --now docker
+                fi
+
+                # Add user to docker group
+                if ! groups "$USER" | grep -q docker; then
+                    echo "Adding $USER to docker group..."
+                    sudo usermod -aG docker "$USER"
+                    echo "NOTE: Log out and back in for docker group membership to take effect"
+                fi
+            fi
+
+            # Configure nvidia-container-toolkit
+            if pacman -Q nvidia-container-toolkit >/dev/null 2>&1; then
+                if [ ! -f /etc/docker/daemon.json ] || ! grep -q "nvidia" /etc/docker/daemon.json 2>/dev/null; then
+                    echo "Configuring NVIDIA container runtime..."
+                    sudo nvidia-ctk runtime configure --runtime=docker
+                    sudo systemctl restart docker
+                fi
+            fi
+        else
+            echo "Warning: Some GPU packages failed to install"
+        fi
+    else
+        echo "All NVIDIA GPU packages already installed"
+    fi
+else
+    echo "No NVIDIA GPU detected, skipping GPU packages"
+fi
+{{ end -}}
+
 {{ else -}}
 # Not a desktop profile, skip Arch package installation
 {{ end -}}
