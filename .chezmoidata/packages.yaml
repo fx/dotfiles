@@ -11,6 +11,7 @@ arch:
   packages:
     - tailscale
     - hyprshot
+    - flatpak
   device_packages:
     - name: opendeck-bin
       usb_ids:
