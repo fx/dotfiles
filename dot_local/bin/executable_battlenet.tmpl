@@ -213,6 +213,10 @@ export STEAM_COMPAT_APP_ID="${APP_ID}"
 # RTX 4000+ performance fix
 export PROTON_NVIDIA_LIBS_NO_32BIT=1
 
+# Prevent freeze when losing focus / switching workspaces
+export DXVK_ASYNC=1
+export VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
+
 # Find Steam Linux Runtime (sniper) for library compatibility
 SNIPER_PATH=""
 while IFS= read -r lib_path; do

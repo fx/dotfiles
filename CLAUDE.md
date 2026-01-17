@@ -2,6 +2,10 @@
 
 **⚠️ WARNING: This is a PUBLIC repository! Never commit personal information, credentials, API keys, or proprietary content to this repository.**
 
+## Desktop Profile
+
+**When working on desktop-related issues (Hyprland, gaming, Proton/Wine, NVIDIA, Stream Deck), ALWAYS read `docs/DESKTOP.md` first.** It contains critical troubleshooting info and known fixes for common issues.
+
 ## Running Dotfiles
 
 **CRITICAL: NEVER run `chezmoi` directly. ALWAYS use `./install.sh` to apply changes.**

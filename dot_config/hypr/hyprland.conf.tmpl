@@ -37,6 +37,14 @@ exec-once = opendeck
 env = XCURSOR_SIZE,24
 env = HYPRCURSOR_SIZE,24
 
+# NVIDIA-specific (https://wiki.hypr.land/Nvidia/)
+env = LIBVA_DRIVER_NAME,nvidia
+env = __GLX_VENDOR_LIBRARY_NAME,nvidia
+env = NVD_BACKEND,direct
+
+# Electron/Chromium apps - use native Wayland with explicit sync
+env = ELECTRON_OZONE_PLATFORM_HINT,auto
+
 
 #####################
 ### LOOK AND FEEL ###
@@ -111,6 +119,12 @@ master {
 misc {
     force_default_wallpaper = 0
     disable_hyprland_logo = true
+    vfr = false                  # Always render every frame, don't skip
+    render_unfocused_fps = 120   # Keep unfocused windows rendering at 120fps
+}
+
+render {
+    direct_scanout = 0           # Disable direct scanout (can cause issues when switching workspaces)
 }
 
 
