@@ -3,6 +3,10 @@ set -e
 
 # Dotfiles installer script
 # Usage: curl -sSL fx.github.io/dotfiles/install.sh | sh -s -- [profile]
+#
+# Environment variables:
+#   DEBUG=1       - Show detailed error output when git fails
+#   FORCE_SSH=1   - Fail entirely if SSH doesn't work (no HTTPS fallback)
 
 # Auto-detect desktop profile if not specified
 if [ -n "$1" ]; then
@@ -67,14 +71,31 @@ if [ -f "$SCRIPT_DIR/.chezmoiignore" ] && [ -d "$SCRIPT_DIR/.chezmoiscripts" ]; 
     LOCAL_MODE=true
     print_success "Using local dotfiles repository at $SCRIPT_DIR"
 else
-    # Test git SSH access by attempting to ls-remote
+    # Test git SSH access by attempting to ls-remote (5 second timeout)
     print_step "Checking Git access..."
-    if git ls-remote "git@github.com:${DOTFILES_REPO}.git" >/dev/null 2>&1; then
+    GIT_SSH_ERROR=$(mktemp)
+    if timeout 5 git ls-remote "git@github.com:${DOTFILES_REPO}.git" >/dev/null 2>"$GIT_SSH_ERROR"; then
         DOTFILES_URL="git@github.com:${DOTFILES_REPO}.git"
         print_success "Using SSH for dotfiles repository"
+        rm -f "$GIT_SSH_ERROR"
     else
+        SSH_EXIT_CODE=$?
+        if [ "${DEBUG:-0}" = "1" ]; then
+            print_error "SSH git access failed (exit code: $SSH_EXIT_CODE)"
+            echo "Error output:"
+            cat "$GIT_SSH_ERROR"
+            echo ""
+        fi
+        rm -f "$GIT_SSH_ERROR"
+
+        if [ "${FORCE_SSH:-0}" = "1" ]; then
+            print_error "SSH access required (FORCE_SSH=1) but SSH failed"
+            print_info "Run with DEBUG=1 for more details"
+            exit 1
+        fi
+
         DOTFILES_URL="https://github.com/${DOTFILES_REPO}.git"
-        print_warning "Using HTTPS for dotfiles repository"
+        print_warning "Using HTTPS for dotfiles repository (SSH failed)"
     fi
 fi
 
