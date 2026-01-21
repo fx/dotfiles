@@ -1,0 +1,30 @@
+#!/bin/bash
+# Configure UFW firewall rules for desktop services
+# Only runs on desktop profile
+# Hash: {{ include ".chezmoidata/packages.yaml" | sha256sum }}
+
+{{ if .is_desktop -}}
+set -e
+
+if ! command -v ufw &> /dev/null; then
+    echo "ufw not installed, skipping firewall configuration"
+    exit 0
+fi
+
+# Ensure UFW is enabled
+if ! sudo ufw status | grep -q "Status: active"; then
+    echo "UFW is not active, skipping firewall configuration"
+    exit 0
+fi
+
+echo "Firewall configuration check passed"
+
+# Add firewall rules here as needed
+# Example:
+# if ! sudo ufw status | grep -q "8080/tcp"; then
+#     sudo ufw allow 8080/tcp comment "HTTP alt"
+# fi
+
+{{ else -}}
+# Not a desktop profile, skip firewall configuration
+{{ end -}}

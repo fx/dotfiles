@@ -263,6 +263,9 @@ submap = reset
 windowrule = suppress_event maximize, match:class .*
 windowrule = no_focus on, match:class ^$, match:title ^$, match:xwayland true, match:float true, match:fullscreen false, match:pin false
 
+# Start OpenDeck minimized (send to special workspace)
+windowrule = workspace special:minimized silent, match:class opendeck, match:title OpenDeck
+
 # Gaming - enable immediate mode (tearing) for better frame pacing
 windowrule = immediate true, match:class steam_app_.*
 windowrule = immediate true, match:class steam_proton_.*
