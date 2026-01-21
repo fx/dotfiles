@@ -1,0 +1,16 @@
+# ~/.config/fish/config.fish - managed by chezmoi
+{{ if eq .profile "desktop" -}}
+# CachyOS fish configuration
+source /usr/share/cachyos-fish-config/cachyos-config.fish
+
+{{ end -}}
+# Add local bin to PATH
+fish_add_path -g ~/.local/bin
+
+# Mise activation
+if type -q mise
+    mise activate fish | source
+end
+
+# Aliases
+alias claude='claude --dangerously-skip-permissions'
