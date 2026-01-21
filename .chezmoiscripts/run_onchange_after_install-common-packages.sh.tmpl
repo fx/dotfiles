@@ -1,0 +1,78 @@
+#!/bin/bash
+# Install common packages on all systems
+# This script runs when the package list changes
+# Supports Debian/Ubuntu and Arch Linux
+
+{{ if .include_defaults -}}
+# Note: No set -e - package failures shouldn't break dotfiles install
+
+install_debian_packages() {
+    missing_packages=""
+    {{ range .common.debian -}}
+    if ! dpkg -l "{{ . }}" 2>/dev/null | grep -q "^ii"; then
+        missing_packages="$missing_packages {{ . }}"
+    fi
+    {{ end -}}
+
+    if [ -n "$missing_packages" ]; then
+        echo "Installing common packages (apt):$missing_packages"
+        sudo apt-get update -qq
+        sudo apt-get install -y $missing_packages
+        echo "Common packages installed"
+    else
+        echo "All common packages already installed"
+    fi
+}
+
+install_arch_packages() {
+    # Use paru if available, otherwise pacman
+    if command -v paru >/dev/null 2>&1; then
+        PKG_MGR="paru"
+    else
+        PKG_MGR="sudo pacman"
+    fi
+
+    missing_packages=""
+    {{ range .common.arch -}}
+    if ! pacman -Q "{{ . }}" >/dev/null 2>&1; then
+        missing_packages="$missing_packages {{ . }}"
+    fi
+    {{ end -}}
+
+    if [ -n "$missing_packages" ]; then
+        echo "Installing common packages ($PKG_MGR):$missing_packages"
+        $PKG_MGR -S --needed --noconfirm $missing_packages
+        echo "Common packages installed"
+    else
+        echo "All common packages already installed"
+    fi
+}
+
+# Detect distro and install
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    case "$ID" in
+        ubuntu|debian)
+            install_debian_packages
+            ;;
+        arch|cachyos|endeavouros|manjaro)
+            install_arch_packages
+            ;;
+        *)
+            # Check for apt or pacman as fallback
+            if command -v apt-get >/dev/null 2>&1; then
+                install_debian_packages
+            elif command -v pacman >/dev/null 2>&1; then
+                install_arch_packages
+            else
+                echo "Unknown distro '$ID', skipping common package installation"
+            fi
+            ;;
+    esac
+else
+    echo "Cannot detect distro, skipping common package installation"
+fi
+
+{{ else -}}
+# include_defaults is false, skip common package installation
+{{ end -}}
