@@ -31,7 +31,8 @@ BNET_STARTUP_WAIT=15
 
 # Check if Battle.net is running
 is_battlenet_running() {
-    pgrep -f "Battle.net.exe" &>/dev/null
+    # Use [B] trick to prevent pgrep from matching itself
+    pgrep -f "[B]attle.net.exe" &>/dev/null
 }
 
 show_help() {
@@ -107,20 +108,90 @@ find_battlenet_prefix() {
     return 1
 }
 
-# Find Proton installation
+# Get Steam's configured Proton for an app
+get_steam_compat_tool() {
+    local steam_root="$1"
+    local app_id="$2"
+    local config_vdf="$steam_root/config/config.vdf"
+
+    if [[ -f "$config_vdf" ]]; then
+        # Extract the compat tool name for this app ID
+        # Looks for pattern: "APP_ID" { ... "name" "proton_xxx" ... }
+        awk -v app="$app_id" '
+            $0 ~ "\"" app "\"" { found=1 }
+            found && /"name"/ { gsub(/"/, "", $2); print $2; exit }
+            found && /^\s*\}/ { found=0 }
+        ' "$config_vdf"
+    fi
+}
+
+# Map Steam's compat tool name to actual path
+resolve_proton_path() {
+    local steam_root="$1"
+    local tool_name="$2"
+
+    # Check compatibilitytools.d first (for GE-Proton, etc.)
+    local compat_dirs=(
+        "$steam_root/compatibilitytools.d"
+        "$HOME/.steam/root/compatibilitytools.d"
+    )
+    for compat_dir in "${compat_dirs[@]}"; do
+        if [[ -d "$compat_dir/$tool_name" && -f "$compat_dir/$tool_name/proton" ]]; then
+            echo "$compat_dir/$tool_name"
+            return 0
+        fi
+    done
+
+    # Map known Steam tool names to paths
+    case "$tool_name" in
+        proton_experimental)
+            while IFS= read -r lib_path; do
+                local path="$lib_path/steamapps/common/Proton - Experimental"
+                if [[ -f "$path/proton" ]]; then
+                    echo "$path"
+                    return 0
+                fi
+            done < <(get_library_paths "$steam_root")
+            ;;
+        proton_9|proton_10)
+            local version="${tool_name#proton_}"
+            while IFS= read -r lib_path; do
+                local path="$lib_path/steamapps/common/Proton ${version}.0"
+                if [[ -f "$path/proton" ]]; then
+                    echo "$path"
+                    return 0
+                fi
+            done < <(get_library_paths "$steam_root")
+            ;;
+    esac
+
+    return 1
+}
+
+# Find Proton installation (uses Steam's config for this app)
 find_proton() {
     local steam_root="$1"
+    local app_id="$2"
     local proton_path=""
 
-    # Search in all library paths for Proton
+    # First, try to use Steam's configured compat tool for this app
+    local tool_name
+    tool_name=$(get_steam_compat_tool "$steam_root" "$app_id")
+    if [[ -n "$tool_name" ]]; then
+        proton_path=$(resolve_proton_path "$steam_root" "$tool_name")
+        if [[ -n "$proton_path" ]]; then
+            echo "$proton_path"
+            return 0
+        fi
+    fi
+
+    # Fallback: search for any Proton
     while IFS= read -r lib_path; do
         local common="$lib_path/steamapps/common"
-        # Prefer Proton Experimental
         if [[ -f "$common/Proton - Experimental/proton" ]]; then
             echo "$common/Proton - Experimental"
             return 0
         fi
-        # Fall back to numbered versions (prefer newest)
         for proton_dir in "$common"/Proton\ [0-9]*/; do
             if [[ -f "${proton_dir}proton" ]]; then
                 proton_path="$proton_dir"
@@ -170,7 +241,10 @@ BNET_PREFIX=$(find_battlenet_prefix "$STEAM_ROOT") || {
     exit 1
 }
 
-PROTON_PATH=$(find_proton "$STEAM_ROOT") || {
+# Get app ID from prefix directory (needed for Proton lookup)
+APP_ID=$(basename "$BNET_PREFIX")
+
+PROTON_PATH=$(find_proton "$STEAM_ROOT" "$APP_ID") || {
     echo "Error: Could not find Proton installation"
     exit 1
 }
@@ -199,9 +273,6 @@ if [[ -n "$GAME" ]]; then
 else
     echo "Launching Battle.net..."
 fi
-
-# Get app ID from prefix directory
-APP_ID=$(basename "$BNET_PREFIX")
 
 # Set up Proton environment
 export STEAM_COMPAT_DATA_PATH="$BNET_PREFIX"
