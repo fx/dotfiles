@@ -2,6 +2,16 @@
 # Package declarations for declarative installation
 # Packages are installed via run_onchange scripts that execute when this file changes
 
+# Common packages installed on all profiles
+common:
+  # Package names vary by distro - list both
+  debian:
+    - dnsutils  # dig
+    - whois
+  arch:
+    - bind      # dig
+    - whois
+
 npm:
   global:
     - "@anthropic-ai/claude-code"
@@ -12,6 +22,17 @@ arch:
     - tailscale
     - hyprshot
     - flatpak
+    # Media viewers
+    - gthumb
+    - vlc
+    - mpv
+    # GStreamer for video thumbnails/preview in gthumb
+    - gstreamer
+    - gst-plugins-base
+    - gst-plugins-good
+    - gst-plugins-bad
+    - gst-plugins-ugly
+    - gst-libav
   device_packages:
     - name: opendeck-bin
       usb_ids:

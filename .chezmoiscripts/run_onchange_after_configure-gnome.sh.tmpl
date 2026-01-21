@@ -1,0 +1,21 @@
+#!/bin/bash
+# Configure GNOME settings via dconf
+# Only runs on desktop profile
+# Hash: {{ include "dot_config/dconf/gnome.ini.tmpl" | sha256sum }}
+
+{{ if .is_desktop -}}
+set -e
+
+DCONF_FILE="$HOME/.config/dconf/gnome.ini"
+
+if [ -f "$DCONF_FILE" ] && command -v dconf &> /dev/null; then
+    echo "Applying GNOME dconf settings..."
+    dconf load / < "$DCONF_FILE"
+    echo "GNOME settings applied"
+else
+    echo "dconf not available or settings file missing, skipping"
+fi
+
+{{ else -}}
+# Not a desktop profile, skip GNOME configuration
+{{ end -}}
