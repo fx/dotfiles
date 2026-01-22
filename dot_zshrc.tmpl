@@ -11,3 +11,6 @@ fi
 
 # Source aliases if present
 [[ -f ~/.bash_aliases ]] && source ~/.bash_aliases
+
+# Source local machine-specific config (not managed by dotfiles)
+[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
