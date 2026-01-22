@@ -1,22 +1,40 @@
 #!/bin/bash
 # Managed by github.com/fx/dotfiles
-# Toggle between HDMI and Schiit Magni audio output
+# Toggle between two audio outputs (speakers/headphones)
+#
+# Configure in ~/.config/audio-toggle/config:
+#   AUDIO_SINK_SPEAKERS="alsa_output.pci-..."
+#   AUDIO_SINK_HEADPHONES="alsa_output.usb-..."
+#   AUDIO_CARD="alsa_card.pci-..." (optional, for HDMI profile switching)
+#   AUDIO_PROFILE="output:hdmi-stereo-extra3" (optional)
 
-HDMI="alsa_output.pci-0000_01_00.1.hdmi-stereo"
-MAGNI="alsa_output.usb-Schiit_Audio_Schiit_Magni_Unity-00.analog-stereo"
+CONFIG_FILE="$HOME/.config/audio-toggle/config"
 STATE_FILE="$HOME/.local/state/audio-output"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "Error: Config not found at $CONFIG_FILE" >&2
+    exit 1
+fi
+
+source "$CONFIG_FILE"
+
+if [[ -z "$AUDIO_SINK_SPEAKERS" || -z "$AUDIO_SINK_HEADPHONES" ]]; then
+    echo "Error: AUDIO_SINK_SPEAKERS and AUDIO_SINK_HEADPHONES must be set" >&2
+    exit 1
+fi
 
 mkdir -p "$(dirname "$STATE_FILE")"
 
-# Get current default sink
 current=$(pactl get-default-sink)
 
-if [ "$current" = "$MAGNI" ]; then
-    pactl set-default-sink "$HDMI"
+if [[ "$current" == "$AUDIO_SINK_HEADPHONES" ]]; then
+    # Switch to speakers - set card profile first if configured
+    [[ -n "$AUDIO_CARD" && -n "$AUDIO_PROFILE" ]] && pactl set-card-profile "$AUDIO_CARD" "$AUDIO_PROFILE"
+    pactl set-default-sink "$AUDIO_SINK_SPEAKERS"
     echo "speakers" > "$STATE_FILE"
     echo "🔊"
 else
-    pactl set-default-sink "$MAGNI"
+    pactl set-default-sink "$AUDIO_SINK_HEADPHONES"
     echo "headphones" > "$STATE_FILE"
     echo "🎧"
 fi

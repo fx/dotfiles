@@ -257,6 +257,40 @@ chmod 600 ~/.config/home-assistant/credentials
 - Never commit credentials to any repository
 - The token grants full API access to your HA instance - keep it secure
 
+## Audio Toggle (Desktop Profile)
+
+The `audio-toggle` script switches between two audio outputs (e.g., HDMI speakers and USB headphones). Device names are machine-specific and configured locally.
+
+### Configuration
+
+Create the config file with your audio device names:
+
+```bash
+mkdir -p ~/.config/audio-toggle
+cat > ~/.config/audio-toggle/config << 'EOF'
+AUDIO_SINK_SPEAKERS="alsa_output.pci-xxxx_xx_xx.x.hdmi-stereo-extra3"
+AUDIO_SINK_HEADPHONES="alsa_output.usb-Your_Device-00.analog-stereo"
+
+# Optional: For HDMI outputs requiring card profile switching
+AUDIO_CARD="alsa_card.pci-xxxx_xx_xx.x"
+AUDIO_PROFILE="output:hdmi-stereo-extra3"
+EOF
+```
+
+### Finding Device Names
+
+```bash
+# List available sinks
+pactl list sinks short
+
+# For HDMI, find card profiles
+pactl list cards | grep -E "(Name:|profile|hdmi)" | head -40
+```
+
+### Usage
+
+Run `audio-toggle` directly or bind to a Stream Deck button. It toggles between outputs and prints an emoji (🔊/🎧) indicating the current state.
+
 ## Testing
 
 ### Testing Workflow
