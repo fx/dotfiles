@@ -1,6 +1,7 @@
 {{- $profile := promptString "profile" -}}
 {{- $include_defaults := true -}}
 {{- $is_desktop := false -}}
+{{- $is_laptop := false -}}
 {{- if eq $profile "default" -}}
 {{-   $include_defaults = true -}}
 {{- else if eq $profile "onXmaps" -}}
@@ -8,11 +9,16 @@
 {{- else if eq $profile "desktop" -}}
 {{-   $include_defaults = true -}}
 {{-   $is_desktop = true -}}
+{{- else if eq $profile "laptop" -}}
+{{-   $include_defaults = true -}}
+{{-   $is_desktop = true -}}
+{{-   $is_laptop = true -}}
 {{- end -}}
 [data]
     profile = {{ $profile | quote }}
     include_defaults = {{ $include_defaults }}
     is_desktop = {{ $is_desktop }}
+    is_laptop = {{ $is_laptop }}
 
 [diff]
     pager = "less"

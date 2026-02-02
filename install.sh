@@ -8,13 +8,18 @@ set -e
 #   DEBUG=1       - Show detailed error output when git fails
 #   FORCE_SSH=1   - Fail entirely if SSH doesn't work (no HTTPS fallback)
 
-# Auto-detect desktop profile if not specified
+# Auto-detect profile if not specified
 if [ -n "$1" ]; then
     PROFILE="$1"
 elif [ -n "$DOTFILES_PROFILE" ]; then
     PROFILE="$DOTFILES_PROFILE"
 elif command -v hyprctl >/dev/null 2>&1; then
-    PROFILE="desktop"
+    # Hyprland is installed - check if laptop (has battery) or desktop
+    if ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
+        PROFILE="laptop"
+    else
+        PROFILE="desktop"
+    fi
 else
     PROFILE="default"
 fi
@@ -132,13 +137,20 @@ if [ "$LOCAL_MODE" = true ]; then
     mkdir -p "$(dirname "$CHEZMOI_CONFIG")"
 
     IS_DESKTOP=false
-    [ "$PROFILE" = "desktop" ] && IS_DESKTOP=true
+    IS_LAPTOP=false
+    if [ "$PROFILE" = "desktop" ]; then
+        IS_DESKTOP=true
+    elif [ "$PROFILE" = "laptop" ]; then
+        IS_DESKTOP=true
+        IS_LAPTOP=true
+    fi
 
     cat > "$CHEZMOI_CONFIG" << EOF
 [data]
     profile = "$PROFILE"
     include_defaults = true
     is_desktop = $IS_DESKTOP
+    is_laptop = $IS_LAPTOP
 
 [diff]
     pager = "less"

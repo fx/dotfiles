@@ -257,6 +257,58 @@ chmod 600 ~/.config/home-assistant/credentials
 - Never commit credentials to any repository
 - The token grants full API access to your HA instance - keep it secure
 
+## Nerd Font Icons (Desktop Profile)
+
+When adding icons to waybar, scripts, or other desktop tools, **always use Nerd Font icons** (monochrome glyphs) instead of standard Unicode emoji.
+
+### Resources
+
+- **Cheat Sheet**: https://www.nerdfonts.com/cheat-sheet
+- **Installed Font**: `ttf-hack-nerd` (in packages.yaml)
+
+### Common Icons
+
+| Purpose | Icon | Codepoint | Name |
+|---------|------|-----------|------|
+| Volume high | | U+F028 | nf-fa-volume_high |
+| Volume low | | U+F027 | nf-fa-volume_low |
+| Volume muted | | U+F026 | nf-fa-volume_off |
+| Wifi | | U+F1EB | nf-fa-wifi |
+| Ethernet | | U+F796 | nf-fa-ethernet |
+| Warning | | U+F071 | nf-fa-warning |
+| Battery full | | U+F240 | nf-fa-battery_full |
+| Battery 3/4 | | U+F241 | nf-fa-battery_three_quarters |
+| Battery 1/2 | | U+F242 | nf-fa-battery_half |
+| Battery 1/4 | | U+F243 | nf-fa-battery_quarter |
+| Battery empty | | U+F244 | nf-fa-battery_empty |
+| Charging/bolt | | U+F0E7 | nf-fa-bolt |
+| Plug | | U+F1E6 | nf-fa-plug |
+| Search/magnify | | U+F002 | nf-fa-search |
+
+### Writing Nerd Font Icons in Files
+
+**IMPORTANT**: The Edit/Write tools may strip special Unicode characters. Use `printf` with escaped codepoints via Bash instead:
+
+```bash
+# Single icon
+printf '\uf028'  # Volume high
+
+# In a file (e.g., JSON config)
+printf '        "format-wifi": "%s {essid}",\n' "$(printf '\uf1eb')" >> config.json
+
+# Multiple icons in an array
+printf '        "format-icons": ["%s", "%s", "%s"]\n' \
+  "$(printf '\uf244')" "$(printf '\uf243')" "$(printf '\uf240')" >> config.json
+```
+
+### Verifying Icons
+
+Check that bytes were written correctly:
+```bash
+grep "format-wifi" config.json | xxd | head -5
+# Should see bytes like: ef87ab (UTF-8 for U+F1EB)
+```
+
 ## Audio Toggle (Desktop Profile)
 
 The `audio-toggle` script switches between two audio outputs (e.g., HDMI speakers and USB headphones). Device names are machine-specific and configured locally.

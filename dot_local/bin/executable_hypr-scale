@@ -1,0 +1,72 @@
+#!/bin/bash
+# Adjust Hyprland monitor scaling
+# Click shows menu, scroll adjusts
+
+SCALES=(1 1.2 1.5 1.7 2)
+
+get_current_scale() {
+    hyprctl monitors -j | jq -r '.[0].scale'
+}
+
+set_scale() {
+    local scale=$1
+    hyprctl keyword monitor eDP-1,preferred,auto,"$scale" >/dev/null
+}
+
+show_menu() {
+    local current=$(get_current_scale)
+    local options=""
+    for s in "${SCALES[@]}"; do
+        if (( $(echo "$s == $current" | bc -l) )); then
+            options+="* ${s}x\n"
+        else
+            options+="  ${s}x\n"
+        fi
+    done
+
+    local choice=$(echo -e "$options" | rofi -dmenu -p "Scale" -theme-str 'window {width: 100px;}')
+    if [[ -n "$choice" ]]; then
+        local scale=$(echo "$choice" | sed 's/[* x]//g')
+        set_scale "$scale"
+    fi
+}
+
+next_scale() {
+    local current=$(get_current_scale)
+    local found=0
+    for s in "${SCALES[@]}"; do
+        if [[ $found -eq 1 ]]; then
+            set_scale "$s"
+            return
+        fi
+        if (( $(echo "$s == $current" | bc -l) )); then
+            found=1
+        fi
+    done
+    # Wrap to first
+    set_scale "${SCALES[0]}"
+}
+
+prev_scale() {
+    local current=$(get_current_scale)
+    local prev="${SCALES[-1]}"
+    for s in "${SCALES[@]}"; do
+        if (( $(echo "$s == $current" | bc -l) )); then
+            set_scale "$prev"
+            return
+        fi
+        prev="$s"
+    done
+    set_scale "${SCALES[-1]}"
+}
+
+case "$1" in
+    menu) show_menu ;;
+    up) next_scale ;;
+    down) prev_scale ;;
+    *)
+        # Default: output current scale for waybar
+        scale=$(get_current_scale)
+        printf "%.2g\n" "$scale"
+        ;;
+esac

@@ -5,6 +5,11 @@
 {{ if and .include_defaults .is_desktop -}}
 set -e
 
+# Only run if Stream Deck is connected
+if ! lsusb 2>/dev/null | grep -q "0fd9:"; then
+    exit 0
+fi
+
 CREDS_DIR="$HOME/.config/home-assistant"
 CREDS_FILE="$CREDS_DIR/credentials"
 

@@ -1,0 +1,25 @@
+#!/bin/bash
+# Install Claude Code via native installer
+# This script runs when its content changes
+
+{{ if .include_defaults -}}
+set -e
+
+CLAUDE_BIN="$HOME/.local/bin/claude"
+
+# Check if Claude is already installed
+if [ -x "$CLAUDE_BIN" ]; then
+    echo "✓ Claude Code already installed"
+    exit 0
+fi
+
+echo "📦 Installing Claude Code..."
+curl -fsSL https://claude.ai/install.sh | bash
+
+if [ -x "$CLAUDE_BIN" ]; then
+    echo "✓ Claude Code installed successfully"
+else
+    echo "⚠️  Claude Code installation may have failed"
+    exit 1
+fi
+{{ end -}}

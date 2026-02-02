@@ -22,6 +22,8 @@ $menu = rofi -show drun -show-icons
 ### AUTOSTART ###
 #################
 
+exec-once = hyprctl keyword monitor eDP-1,preferred,auto,1
+exec-once = gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 exec-once = /usr/lib/polkit-kde-authentication-agent-1
 exec-once = waybar
 exec-once = ~/.config/waybar/scripts/notifications.sh --listen
@@ -57,23 +59,16 @@ general {
 }
 
 decoration {
-    rounding = 10
-    rounding_power = 2
+    rounding = 0
     active_opacity = 1.0
     inactive_opacity = 1.0
 
     shadow {
-        enabled = true
-        range = 4
-        render_power = 3
-        color = rgba(1a1a1aee)
+        enabled = false
     }
 
     blur {
-        enabled = true
-        size = 3
-        passes = 1
-        vibrancy = 0.1696
+        enabled = false
     }
 }
 

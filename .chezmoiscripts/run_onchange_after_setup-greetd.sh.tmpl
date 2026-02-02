@@ -1,0 +1,49 @@
+#!/bin/bash
+# Configure greetd + tuigreet as display manager
+# This script runs when the config changes
+# Only runs on desktop profile
+
+{{ if .is_desktop -}}
+set -e
+
+# Check if greetd is installed
+if ! command -v greetd >/dev/null 2>&1; then
+    echo "greetd not installed yet, skipping setup"
+    exit 0
+fi
+
+if ! command -v tuigreet >/dev/null 2>&1; then
+    echo "tuigreet not installed yet, skipping setup"
+    exit 0
+fi
+
+echo "Configuring greetd + tuigreet..."
+
+# Create greetd config
+sudo tee /etc/greetd/config.toml > /dev/null << 'EOF'
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --sessions /usr/share/wayland-sessions --time --remember --remember-session --asterisks --window-padding 2 --theme 'border=#282828;text=#c8c8c8;prompt=#c8c8c8;time=#c8c8c8;action=#c8c8c8;button=#282828;container=#0a0a0a;input=#c8c8c8'"
+user = "greeter"
+EOF
+
+# Disable sddm first if it's enabled (don't fail if not present)
+if systemctl is-enabled sddm >/dev/null 2>&1; then
+    echo "Disabling sddm service..."
+    sudo systemctl disable sddm
+fi
+
+# Enable greetd service
+if ! systemctl is-enabled greetd >/dev/null 2>&1; then
+    echo "Enabling greetd service..."
+    sudo systemctl enable greetd
+fi
+
+echo "greetd configured. Changes take effect on next boot."
+echo "To switch now: sudo systemctl stop sddm && sudo systemctl start greetd"
+
+{{ else -}}
+# Not desktop profile, skip
+{{ end -}}

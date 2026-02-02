@@ -1,0 +1,80 @@
+{{ if .is_desktop -}}
+{
+    "layer": "top",
+    "height": 28,
+    "spacing": 8,
+
+    "modules-left": [
+        "hyprland/workspaces"
+    ],
+    "modules-center": [
+        "hyprland/window"
+    ],
+    "modules-right": [
+{{ if .is_laptop }}
+        "custom/scale",
+        "battery",
+{{ end }}
+        "pulseaudio",
+        "network",
+        "clock",
+        "tray"
+    ],
+
+    "hyprland/workspaces": {
+        "format": "{id}"
+    },
+
+    "hyprland/window": {
+        "max-length": 50
+    },
+
+    "clock": {
+        "format": "{:%a %b %d  %H:%M}",
+        "tooltip-format": "<tt>{calendar}</tt>"
+    },
+
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon} {capacity}%",
+        "format-charging": " {capacity}%",
+        "format-plugged": " {capacity}%",
+        "format-icons": ["", "", "", "", ""]
+    },
+
+    "network": {
+        "format-wifi": " {essid}",
+        "format-ethernet": " {ipaddr}",
+        "format-disconnected": " Disconnected",
+        "tooltip-format": "{ifname}: {ipaddr}/{cidr}"
+    },
+
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-muted": " muted",
+        "format-icons": {
+            "default": ["", "", ""]
+        },
+        "on-click": "pavucontrol"
+    },
+
+{{ if .is_laptop }}
+    "custom/scale": {
+        "exec": "hypr-scale",
+        "interval": 1,
+        "format": " {}x",
+        "on-click": "hypr-scale menu",
+        "on-scroll-up": "hypr-scale up",
+        "on-scroll-down": "hypr-scale down",
+        "tooltip": false
+    },
+{{ end }}
+
+    "tray": {
+        "spacing": 8
+    }
+}
+{{ end -}}

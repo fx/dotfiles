@@ -12,13 +12,25 @@ common:
     - bind      # dig
     - whois
 
-npm:
-  global:
-    - "@anthropic-ai/claude-code"
-
 # Arch Linux packages (desktop profile only)
 arch:
   packages:
+    # Core Hyprland desktop
+    - ghostty
+    - rofi-wayland
+    - waybar
+    - hyprlock
+    - dolphin
+    - polkit-kde-agent
+    # Login manager
+    - greetd
+    - greetd-tuigreet
+    # Fonts
+    - ttf-hack-nerd
+    # Media/brightness controls
+    - playerctl
+    - brightnessctl
+    # System
     - tailscale
     - hyprshot
     - flatpak

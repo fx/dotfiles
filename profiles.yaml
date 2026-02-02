@@ -37,3 +37,17 @@ profiles:
       - npm (via mise)
     packages:
       - declarative via .chezmoidata/packages.yaml
+
+  laptop:
+    description: Laptop profile - inherits from desktop
+    include_defaults: true
+    is_desktop: true
+    is_laptop: true
+    features:
+      - all desktop features
+      - laptop-specific adjustments (TBD)
+    tools:
+      - node (via mise)
+      - npm (via mise)
+    packages:
+      - declarative via .chezmoidata/packages.yaml

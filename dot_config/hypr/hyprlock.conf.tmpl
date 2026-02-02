@@ -1,0 +1,46 @@
+{{ if .is_desktop -}}
+# Hyprlock configuration
+# Minimal dark theme matching greetd/tuigreet
+
+general {
+    hide_cursor = true
+    grace = 0
+    no_fade_in = true
+    no_fade_out = true
+}
+
+background {
+    monitor =
+    color = rgb(0a0a0a)
+}
+
+input-field {
+    monitor =
+    size = 300, 50
+    outline_thickness = 2
+    rounding = 0
+    dots_size = 0.25
+    dots_spacing = 0.15
+    dots_center = true
+    outer_color = rgb(282828)
+    inner_color = rgb(0a0a0a)
+    font_color = rgb(c8c8c8)
+    fade_on_empty = false
+    placeholder_text =
+    hide_input = false
+    position = 0, 0
+    halign = center
+    valign = center
+}
+
+label {
+    monitor =
+    text = $USER
+    color = rgb(c8c8c8)
+    font_size = 18
+    font_family = Hack Nerd Font
+    position = 0, 80
+    halign = center
+    valign = center
+}
+{{ end -}}
