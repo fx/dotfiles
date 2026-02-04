@@ -1,0 +1,36 @@
+#!/bin/bash
+# Configure udev rules for Vial keyboard configuration (WebHID access)
+# Only runs on desktop profile
+
+{{ if .is_desktop -}}
+set -e
+
+RULES_FILE="/etc/udev/rules.d/99-vial.rules"
+
+# Check if rules already exist with correct content
+EXPECTED_CONTENT="# Vial WebHID access for keyboard configuration
+# Allows Chrome/browsers to access HID devices for vial.rocks
+KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0660\", GROUP=\"input\", TAG+=\"uaccess\""
+
+if [ -f "$RULES_FILE" ] && [ "$(cat "$RULES_FILE")" = "$EXPECTED_CONTENT" ]; then
+    echo "Vial udev rules already configured"
+    exit 0
+fi
+
+echo "Configuring Vial udev rules..."
+
+sudo tee "$RULES_FILE" > /dev/null << 'EOF'
+# Vial WebHID access for keyboard configuration
+# Allows Chrome/browsers to access HID devices for vial.rocks
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", MODE="0660", GROUP="input", TAG+="uaccess"
+EOF
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+echo "Vial udev rules configured. Replug keyboard to apply."
+
+{{ else -}}
+# Not desktop profile, skip
+{{ end -}}
