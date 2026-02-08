@@ -24,6 +24,8 @@ $menu = rofi -show drun -show-icons
 
 exec-once = hyprctl keyword monitor eDP-1,preferred,auto,1
 exec-once = gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+exec-once = systemctl --user restart xdg-desktop-portal.service
 exec-once = /usr/lib/polkit-kde-authentication-agent-1
 exec-once = waybar
 exec-once = ~/.config/waybar/scripts/notifications.sh --listen
@@ -41,6 +43,10 @@ env = HYPRCURSOR_SIZE,24
 
 # Electron/Chromium apps - use native Wayland with explicit sync
 env = ELECTRON_OZONE_PLATFORM_HINT,auto
+
+# Dark mode preference
+env = GTK_THEME,Adwaita:dark
+env = QT_QPA_PLATFORMTHEME,qt5ct
 
 
 #####################

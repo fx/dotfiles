@@ -8,6 +8,37 @@ Config location: `dot_config/hypr/hyprland.conf.tmpl`
 
 Machine-specific overrides (monitors, VRR) go in `~/.config/hypr/local.conf` (not managed by dotfiles).
 
+### Dark Mode
+
+Applications like Zed query the XDG Desktop Portal to detect the system color scheme. This requires:
+
+1. **Packages** (in `packages.yaml`):
+   - `xdg-desktop-portal` - Main portal service
+   - `xdg-desktop-portal-hyprland` - Hyprland backend
+   - `xdg-desktop-portal-gtk` - GTK fallback
+
+2. **Portal Configuration** (`~/.config/xdg-desktop-portal/hyprland-portals.conf`):
+   ```ini
+   [preferred]
+   default=hyprland;gtk
+   org.freedesktop.impl.portal.Settings=hyprland
+   ```
+
+3. **Environment Variables** (in `hyprland.conf`):
+   ```
+   env = GTK_THEME,Adwaita:dark
+   env = QT_QPA_PLATFORMTHEME,qt5ct
+   ```
+
+4. **Autostart** (in `hyprland.conf`):
+   ```
+   exec-once = gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+   exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+   exec-once = systemctl --user restart xdg-desktop-portal.service
+   ```
+
+Applications should now correctly detect dark mode via the portal's Settings interface.
+
 ### Key Settings
 
 **Rendering (misc section):**

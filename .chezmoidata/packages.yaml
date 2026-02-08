@@ -22,6 +22,10 @@ arch:
     - hyprlock
     - dolphin
     - polkit-kde-agent
+    # XDG Desktop Portal (for dark mode detection in apps)
+    - xdg-desktop-portal
+    - xdg-desktop-portal-hyprland
+    - xdg-desktop-portal-gtk
     # Login manager
     - greetd
     - greetd-tuigreet
@@ -36,6 +40,7 @@ arch:
     - flatpak
     # Development
     - coder-bin
+    - zed
     # Media viewers
     - gthumb
     - vlc
