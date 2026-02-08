@@ -1,0 +1,46 @@
+#!/bin/bash
+# Configure networking for Tailscale MagicDNS compatibility
+# Ensures systemd-resolved and NetworkManager are wired together correctly
+# Only runs on desktop profile
+
+{{ if .is_desktop -}}
+set -e
+
+if ! command -v tailscale &> /dev/null; then
+    echo "tailscale not installed, skipping networking configuration"
+    exit 0
+fi
+
+changed=0
+
+# Configure NetworkManager to use systemd-resolved as DNS backend
+nm_dns_conf="/etc/NetworkManager/conf.d/dns.conf"
+nm_dns_expected="[main]
+dns=systemd-resolved"
+
+if [ ! -f "$nm_dns_conf" ] || [ "$(cat "$nm_dns_conf")" != "$nm_dns_expected" ]; then
+    echo "Configuring NetworkManager to use systemd-resolved..."
+    echo "$nm_dns_expected" | sudo tee "$nm_dns_conf" > /dev/null
+    changed=1
+fi
+
+# Ensure /etc/resolv.conf is a symlink to systemd-resolved stub
+resolv_target="/run/systemd/resolve/stub-resolv.conf"
+if [ ! -L /etc/resolv.conf ] || [ "$(readlink /etc/resolv.conf)" != "$resolv_target" ]; then
+    echo "Symlinking /etc/resolv.conf to systemd-resolved stub..."
+    sudo rm -f /etc/resolv.conf
+    sudo ln -s "$resolv_target" /etc/resolv.conf
+    changed=1
+fi
+
+# Restart services if changes were made
+if [ "$changed" -eq 1 ]; then
+    echo "Restarting networking services..."
+    sudo systemctl restart NetworkManager systemd-resolved tailscaled
+fi
+
+echo "Networking configured for Tailscale MagicDNS"
+
+{{ else -}}
+# Not a desktop profile, skip networking configuration
+{{ end -}}
