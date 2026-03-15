@@ -1,4 +1,19 @@
 # Bash aliases
 
 # Claude CLI - skip permissions prompt
-alias claude='claude --dangerously-skip-permissions'
+alias claude="claude --dangerously-skip-permissions"
+alias aa="agentapi attach"
+agentapi-restart() {
+  echo "Stopping agentapi..."
+  pkill -f "agentapi server" 2>/dev/null
+  while pgrep -f "agentapi server" >/dev/null 2>&1; do sleep 0.5; done
+  echo "Starting agentapi..."
+  nohup ~/.claude-module/scripts/agentapi-start.sh < /dev/null > /tmp/agentapi-restart.log 2>&1 &
+  sleep 3
+  if pgrep -f "agentapi server" >/dev/null 2>&1; then
+    echo "agentapi restarted (pid $(pgrep -f 'agentapi server')). Use 'aa' to attach."
+  else
+    echo "agentapi failed to start:"
+    tail -20 /tmp/agentapi-restart.log
+  fi
+}
