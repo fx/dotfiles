@@ -1,0 +1,108 @@
+#!/bin/bash
+# Managed by github.com/fx/dotfiles
+# Import photos/videos from a PTP/MTP camera to ~/Pictures/Photos organized by date
+#
+# Usage: camera-import [--dry-run]
+#
+# Detects the camera via gphoto2, downloads all media files to:
+#   ~/Pictures/Photos/YYYY/YYYY-MM-DD/
+#
+# Uses the camera's file timestamps for date organization.
+# Skips files that already exist at the destination.
+#
+# Requires: gphoto2
+
+set -euo pipefail
+
+DEST="$HOME/Pictures/Photos"
+DRY_RUN=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN=true ;;
+        -h|--help)
+            echo "Usage: camera-import [--dry-run]"
+            echo "Import photos/videos from camera to ~/Pictures/Photos/YYYY/YYYY-MM-DD/"
+            exit 0
+            ;;
+        *) echo "Unknown option: $arg" >&2; exit 1 ;;
+    esac
+done
+
+if ! command -v gphoto2 &>/dev/null; then
+    echo "Error: gphoto2 not found. Install it first." >&2
+    exit 1
+fi
+
+# Detect camera
+camera=$(gphoto2 --auto-detect 2>/dev/null | tail -n +3 | head -1)
+if [[ -z "$camera" ]]; then
+    echo "Error: No camera detected. Is it connected and powered on?" >&2
+    exit 1
+fi
+
+camera_name=$(echo "$camera" | sed 's/  *usb:.*//')
+echo "Detected: $camera_name"
+
+# List files on camera (retry with USB reset on PTP timeout)
+list_output=$(gphoto2 --list-files 2>&1)
+file_list=$(echo "$list_output" | grep "^#" || true)
+
+if [[ -z "$file_list" ]] && echo "$list_output" | grep -qi "timeout"; then
+    usb_id=$(lsusb | grep -i "$(echo "$camera_name" | awk '{print $1}')" | grep -oP '[0-9a-f]{4}:[0-9a-f]{4}')
+    if [[ -n "$usb_id" ]] && command -v usbreset &>/dev/null; then
+        echo "PTP timeout, resetting USB device..."
+        sudo usbreset "$usb_id" 2>/dev/null || true
+        sleep 2
+        list_output=$(gphoto2 --list-files 2>&1)
+        file_list=$(echo "$list_output" | grep "^#" || true)
+    fi
+fi
+
+if [[ -z "$file_list" ]]; then
+    if echo "$list_output" | grep -qi "timeout"; then
+        echo "Error: Camera timed out. Try unplugging and replugging the USB cable." >&2
+        exit 1
+    fi
+    echo "No files found on camera."
+    exit 0
+fi
+
+file_count=$(echo "$file_list" | wc -l)
+
+if [[ "$file_count" -eq 0 ]]; then
+    echo "No files found on camera."
+    exit 0
+fi
+
+echo "Found $file_count files on camera."
+
+if $DRY_RUN; then
+    echo ""
+    echo "Files on camera:"
+    echo "$file_list" | while read -r line; do
+        fname=$(echo "$line" | awk '{print $2}')
+        size=$(echo "$line" | awk '{print $4}')
+        echo "  $fname (${size} KB)"
+    done
+    echo ""
+    echo "Would be organized into $DEST/YYYY/YYYY-MM-DD/"
+    exit 0
+fi
+
+# Download directly to organized directories using camera file timestamps
+mkdir -p "$DEST"
+echo "Downloading and organizing by date..."
+
+output=$(gphoto2 --get-all-files --folder / --skip-existing \
+    --filename "$DEST/%Y/%Y-%m-%d/%f.%C" 2>&1)
+
+imported=$(echo "$output" | grep -c "^Saving " || true)
+skipped=$(echo "$output" | grep -c "^Skipping " || true)
+
+echo "$output" | grep -E "^(Saving|Skipping) " | while read -r line; do
+    echo "  $line"
+done
+
+echo ""
+echo "Import complete: $imported imported, $skipped skipped."

@@ -47,6 +47,9 @@ arch:
     - gthumb
     - vlc
     - mpv
+    # Camera/photo tools
+    - perl-image-exiftool
+    - gphoto2
     # GStreamer for video thumbnails/preview in gthumb
     - gstreamer
     - gst-plugins-base
