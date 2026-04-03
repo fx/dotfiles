@@ -138,6 +138,45 @@ env = NVD_BACKEND,direct
 
 The dotfiles configure WirePlumber to handle NVIDIA HDMI audio properly. Config is generated during `./install.sh` when an NVIDIA GPU is detected.
 
+## DisplayPort Monitor Not Detected on Cold Boot
+
+### Symptoms
+
+One or more monitors connected via DisplayPort aren't detected after a cold boot, but all monitors show in SDDM. A reboot fixes the issue.
+
+### Cause
+
+AMD GPU DisplayPort link training can timeout on cold boot before the monitor is ready. The kernel logs show:
+```
+[drm] *ERROR* Sending link address failed with -5
+```
+
+### Fix
+
+**1. Add amdgpu to early KMS modules** (recommended):
+
+```bash
+sudo sed -i 's/^MODULES=.*/MODULES=(amdgpu)/' /etc/mkinitcpio.conf
+sudo mkinitcpio -P
+```
+
+This loads the GPU driver earlier in boot, giving more time for DP link training.
+
+**2. Monitor check script** (included in dotfiles):
+
+The `monitor-check` script runs at Hyprland startup and notifies you if monitors are missing. If you see the notification, try:
+- Physically unplug/replug the DisplayPort cable
+- Or reboot
+
+### Verification
+
+Check current MODULES setting:
+```bash
+grep "^MODULES=" /etc/mkinitcpio.conf
+```
+
+Should show `MODULES=(amdgpu)`.
+
 ## Stream Deck (OpenDeck)
 
 See `dot_config/opendeck/README.md` for encoder/button configuration details.

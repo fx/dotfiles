@@ -1,0 +1,36 @@
+#!/bin/bash
+# Check if expected monitors are connected at Hyprland startup
+# Notifies user if monitors are missing (common with DP on cold boot)
+
+EXPECTED_MONITORS=3
+RETRY_DELAY=3
+MAX_RETRIES=3
+
+check_monitors() {
+    hyprctl monitors | grep -c "^Monitor " 2>/dev/null || echo 0
+}
+
+# Wait a moment for displays to initialize
+sleep 2
+
+for i in $(seq 1 $MAX_RETRIES); do
+    count=$(check_monitors)
+
+    if [[ "$count" -ge "$EXPECTED_MONITORS" ]]; then
+        exit 0
+    fi
+
+    # Try triggering HPD re-detection (may help on some setups)
+    if [[ -w /sys/kernel/debug/dri/1/amdgpu_dm_trigger_hpd_mst ]]; then
+        echo 1 > /sys/kernel/debug/dri/1/amdgpu_dm_trigger_hpd_mst 2>/dev/null
+    fi
+
+    sleep $RETRY_DELAY
+done
+
+# Still missing monitors - notify user
+count=$(check_monitors)
+if [[ "$count" -lt "$EXPECTED_MONITORS" ]]; then
+    notify-send -u critical "Monitor Missing" \
+        "Only $count/$EXPECTED_MONITORS monitors detected.\n\nTry: unplug/replug the DP cable, or reboot."
+fi
