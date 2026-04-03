@@ -57,8 +57,12 @@ arch:
       usb_ids:
         - "0fd9:0084"  # Stream Deck Plus
   # GPU-conditional packages (installed when NVIDIA GPU is detected via lspci)
+  # Driver modules are installed dynamically per-kernel in the install script
   gpu_packages:
     nvidia:
+      - nvidia-utils
+      - lib32-nvidia-utils
+      - egl-wayland
       - docker
       - docker-compose
       - nvidia-container-toolkit

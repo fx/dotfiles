@@ -48,6 +48,13 @@ env = ELECTRON_OZONE_PLATFORM_HINT,auto
 env = GTK_THEME,Adwaita:dark
 env = QT_QPA_PLATFORMTHEME,qt5ct
 
+# NVIDIA GPU - required for Hyprland to launch
+{{ if output "sh" "-c" "lspci 2>/dev/null | grep -qi nvidia && echo nvidia || echo other" | trim | eq "nvidia" -}}
+env = LIBVA_DRIVER_NAME,nvidia
+env = __GLX_VENDOR_LIBRARY_NAME,nvidia
+env = NVD_BACKEND,direct
+{{ end -}}
+
 
 #####################
 ### LOOK AND FEEL ###
@@ -121,6 +128,10 @@ misc {
 
 render {
     direct_scanout = 0           # Disable direct scanout (can cause issues when switching workspaces)
+}
+
+cursor {
+    use_cpu_buffer = true        # Render cursor via CPU DRM dumb buffers (fixes EGL blit failure on nvidia-open)
 }
 
 

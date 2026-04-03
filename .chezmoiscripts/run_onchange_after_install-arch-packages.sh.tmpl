@@ -87,6 +87,19 @@ if lspci 2>/dev/null | grep -qi "nvidia"; then
     fi
     {{ end -}}
 
+    # Auto-detect installed CachyOS kernels and install matching NVIDIA open modules
+    for kernel_pkg in $(pacman -Q | grep -oP 'linux-cachyos\S*' | grep -v -E '(headers|nvidia)'); do
+        nvidia_pkg="${kernel_pkg}-nvidia-open"
+        if pacman -Ss "${nvidia_pkg}" 2>/dev/null | grep -q "${nvidia_pkg}"; then
+            if ! pacman -Q "$nvidia_pkg" >/dev/null 2>&1; then
+                echo "Detected kernel $kernel_pkg, will install $nvidia_pkg"
+                gpu_missing_packages="$gpu_missing_packages $nvidia_pkg"
+            fi
+        else
+            echo "Warning: No NVIDIA module package found for $kernel_pkg"
+        fi
+    done
+
     if [ -n "$gpu_missing_packages" ]; then
         echo "Installing NVIDIA GPU packages:$gpu_missing_packages"
         if paru -S --needed --noconfirm $gpu_missing_packages; then
@@ -120,6 +133,19 @@ if lspci 2>/dev/null | grep -qi "nvidia"; then
         fi
     else
         echo "All NVIDIA GPU packages already installed"
+    fi
+
+    # Ensure nvidia_drm modeset is enabled (required for Hyprland on NVIDIA)
+    nvidia_modprobe="/etc/modprobe.d/nvidia.conf"
+    nvidia_modprobe_expected="options nvidia_drm modeset=1 fbdev=1"
+    if [ ! -f "$nvidia_modprobe" ] || ! grep -qF "$nvidia_modprobe_expected" "$nvidia_modprobe"; then
+        echo "Configuring nvidia_drm modeset..."
+        echo "$nvidia_modprobe_expected" | sudo tee "$nvidia_modprobe" >/dev/null
+        echo "Rebuilding initramfs..."
+        sudo mkinitcpio -P
+        echo "nvidia_drm modeset configured"
+    else
+        echo "nvidia_drm modeset already configured"
     fi
 else
     echo "No NVIDIA GPU detected, skipping GPU packages"
