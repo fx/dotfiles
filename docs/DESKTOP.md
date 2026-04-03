@@ -177,6 +177,78 @@ grep "^MODULES=" /etc/mkinitcpio.conf
 
 Should show `MODULES=(amdgpu)`.
 
+## Game Streaming (Sunshine + Moonlight)
+
+The dotfiles configure Sunshine (game streaming host) for streaming games to other devices via the Moonlight client.
+
+### Installation
+
+Install both packages (CachyOS/Arch):
+```bash
+paru -S sunshine moonlight-qt
+```
+
+### Sunshine (Host)
+
+Sunshine allows streaming games FROM this PC to other devices (Steam Deck, phone, TV, etc.).
+
+**First-time setup:**
+1. Start sunshine: `systemctl --user start sunshine`
+2. Open the web UI: https://localhost:47990
+3. Create admin credentials when prompted
+4. Pair your Moonlight client by entering the PIN displayed in the web UI
+
+**Configuration files:**
+- `~/.config/sunshine/sunshine.conf` - Main config (managed by dotfiles)
+- `~/.config/sunshine/apps.json` - Applications to expose (managed by dotfiles)
+
+**Enable at startup:**
+```bash
+systemctl --user enable sunshine
+```
+
+**Adding applications:**
+Edit `apps.json` or use the web UI to add games. Example entry:
+```json
+{
+  "name": "Game Name",
+  "detached": ["steam steam://rungameid/12345"],
+  "cmd": ""
+}
+```
+
+### Moonlight (Client)
+
+Moonlight receives streams TO this PC from another Sunshine/GameStream host.
+
+**Usage:**
+1. Launch `moonlight-qt`
+2. Select the host PC from discovered servers
+3. Pair if prompted (enter PIN shown on host)
+4. Select an application to stream
+
+**Hyprland integration:**
+The Moonlight window has `immediate true` (tearing) enabled for lowest latency streaming.
+
+### Troubleshooting
+
+#### Sunshine won't start
+Check if another instance is running or port 47990 is in use:
+```bash
+ss -tlnp | grep 47990
+```
+
+#### Pairing fails
+Ensure both devices are on the same network. Check Sunshine logs:
+```bash
+journalctl --user -u sunshine -f
+```
+
+#### High latency in Moonlight
+- Enable hardware decoding in Moonlight settings
+- Use HEVC (H.265) codec if both host and client support it
+- Connect via Ethernet instead of WiFi when possible
+
 ## Stream Deck (OpenDeck)
 
 See `dot_config/opendeck/README.md` for encoder/button configuration details.

@@ -1,0 +1,42 @@
+{{ if .is_desktop -}}
+{
+  "env": {
+    "PATH": "$(PATH):$(HOME)/.local/bin"
+  },
+  "apps": [
+    {
+      "name": "Desktop",
+      "output": "",
+      "cmd": "",
+      "index": -1,
+      "exclude-global-prep-cmd": false,
+      "elevated": false,
+      "image-path": ""
+    },
+    {
+      "name": "Steam Big Picture",
+      "output": "",
+      "detached": [
+        "steam steam://open/bigpicture"
+      ],
+      "cmd": "",
+      "index": -1,
+      "exclude-global-prep-cmd": false,
+      "elevated": false,
+      "image-path": ""
+    },
+    {
+      "name": "WoW Classic Anniversary",
+      "output": "",
+      "detached": [
+        "battlenet anniversary"
+      ],
+      "cmd": "",
+      "index": -1,
+      "exclude-global-prep-cmd": false,
+      "elevated": false,
+      "image-path": ""
+    }
+  ]
+}
+{{ end -}}

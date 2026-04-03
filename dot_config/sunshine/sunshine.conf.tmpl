@@ -1,0 +1,32 @@
+{{ if .is_desktop -}}
+# Sunshine Game Streaming Host Configuration
+# Managed by dotfiles - https://github.com/LizardByte/Sunshine
+#
+# After installation, access the web UI at https://localhost:47990
+# to configure applications and pair devices.
+
+# Network settings
+origin_web_ui_allowed = pc
+
+# Display to capture (monitor index - see Sunshine logs for list)
+# Note: Per-app output selection doesn't work on Wayland, must set globally
+output_name = 1
+
+# Encoder settings (auto-detect GPU)
+# nvenc for NVIDIA, vaapi for AMD/Intel
+{{ if output "sh" "-c" "lspci 2>/dev/null | grep -qi nvidia && echo nvidia || echo other" | trim | eq "nvidia" -}}
+encoder = nvenc
+{{ else -}}
+encoder = vaapi
+{{ end -}}
+
+# Stream quality defaults
+min_fps_factor = 1
+max_fps = 120
+
+# Audio - capture the current desktop audio
+audio_sink = @DEFAULT_AUDIO_SINK@
+
+# Input - virtual input for keyboard/mouse
+keybindings_enabled = true
+{{ end -}}

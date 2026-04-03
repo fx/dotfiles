@@ -22,6 +22,7 @@ shared/
 .config/hypr/
 .config/mpv/
 .config/opendeck/
+.config/sunshine/
 .local/bin/audio-toggle
 .local/bin/volume-control
 .local/bin/ha-light
