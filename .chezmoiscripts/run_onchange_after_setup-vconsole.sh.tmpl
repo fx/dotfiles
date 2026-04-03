@@ -1,0 +1,28 @@
+#!/bin/bash
+# Configure console font for HiDPI displays
+# This script runs when the config changes
+# Only runs on desktop profile
+
+{{ if .is_desktop -}}
+set -e
+
+# Check if terminus-font is installed
+if [[ ! -f /usr/share/kbd/consolefonts/ter-132n.psf.gz ]]; then
+    echo "terminus-font not installed yet, skipping vconsole setup"
+    exit 0
+fi
+
+echo "Configuring console font for HiDPI..."
+
+# Use ter-132n (32px height) for 4K displays
+# This makes greetd/tuigreet readable on HiDPI screens
+sudo tee /etc/vconsole.conf > /dev/null << 'EOF'
+KEYMAP=us
+FONT=ter-132n
+EOF
+
+echo "Console font configured. Changes take effect on next boot or run: sudo systemctl restart systemd-vconsole-setup"
+
+{{ else -}}
+# Not desktop profile, skip
+{{ end -}}

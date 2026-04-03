@@ -31,6 +31,7 @@ arch:
     - greetd-tuigreet
     # Fonts
     - ttf-hack-nerd
+    - terminus-font  # HiDPI console fonts for greetd
     # Media/brightness controls
     - playerctl
     - brightnessctl

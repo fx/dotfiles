@@ -25,7 +25,7 @@ sudo tee /etc/greetd/config.toml > /dev/null << 'EOF'
 vt = 1
 
 [default_session]
-command = "tuigreet --sessions /usr/share/wayland-sessions --time --remember --remember-session --asterisks --window-padding 2 --theme 'border=#282828;text=#c8c8c8;prompt=#c8c8c8;time=#c8c8c8;action=#c8c8c8;button=#282828;container=#0a0a0a;input=#c8c8c8'"
+command = "tuigreet --sessions /usr/share/wayland-sessions --time --remember --remember-session --asterisks --width 120 --window-padding 2 --container-padding 2 --theme 'border=#282828;text=#c8c8c8;prompt=#c8c8c8;time=#c8c8c8;action=#c8c8c8;button=#282828;container=#0a0a0a;input=#c8c8c8'"
 user = "greeter"
 EOF
 
