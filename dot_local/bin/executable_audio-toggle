@@ -25,16 +25,26 @@ fi
 
 mkdir -p "$(dirname "$STATE_FILE")"
 
+# Move all running streams to the given sink
+move_streams() {
+    local target_sink="$1"
+    pactl list sink-inputs short 2>/dev/null | while read -r index rest; do
+        pactl move-sink-input "$index" "$target_sink" 2>/dev/null
+    done
+}
+
 current=$(pactl get-default-sink)
 
 if [[ "$current" == "$AUDIO_SINK_HEADPHONES" ]]; then
     # Switch to speakers - set card profile first if configured
     [[ -n "$AUDIO_CARD" && -n "$AUDIO_PROFILE" ]] && pactl set-card-profile "$AUDIO_CARD" "$AUDIO_PROFILE"
     pactl set-default-sink "$AUDIO_SINK_SPEAKERS"
+    move_streams "$AUDIO_SINK_SPEAKERS"
     echo "speakers" > "$STATE_FILE"
     echo "🔊"
 else
     pactl set-default-sink "$AUDIO_SINK_HEADPHONES"
+    move_streams "$AUDIO_SINK_HEADPHONES"
     echo "headphones" > "$STATE_FILE"
     echo "🎧"
 fi
