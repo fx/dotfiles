@@ -94,6 +94,14 @@ VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
 
 ### Troubleshooting
 
+#### WoW won't launch — "Windows compatibility mode" error
+
+**Symptoms:** Battle.net refuses to launch WoW, saying Windows compatibility mode is enabled. May also say Windows 10 is no longer supported.
+
+**Cause:** Proton defaults the Wine version to `win7`. WoW dropped Win10 support and requires Windows 11+. Battle.net checks `GetVersionEx()` which Wine controls via `HKCU\Software\Wine\Version` (not the cosmetic `HKLM\..\CurrentVersion` registry keys).
+
+**Fix:** The `battlenet` script automatically patches `user.reg` to set `Version`=`win11` under `Software\Wine`. No manual action needed — it runs on every launch and skips if already patched.
+
 #### Game freezes when switching workspaces
 
 **Symptoms:** Game freezes permanently when switching to another workspace, never recovers even when switching back.

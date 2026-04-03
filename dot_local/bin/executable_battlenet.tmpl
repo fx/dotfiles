@@ -19,6 +19,8 @@ declare -A GAME_PRODUCTS=(
     [classic]="WoWC"
     [wowc]="WoWC"
     [era]="WoWClassicEra"
+    [anniversary]="WoWCA"
+    [anni]="WoWCA"
     [d4]="OSI"
     [diablo4]="OSI"
     [diablo]="OSI"
@@ -46,6 +48,7 @@ Games:
     wow, retail     World of Warcraft (Retail)
     classic, wowc   World of Warcraft Classic
     era             World of Warcraft Classic Era
+    anniversary     World of Warcraft Classic Anniversary
     d4, diablo4     Diablo 4
     d3, diablo3     Diablo 3
 
@@ -273,6 +276,20 @@ if [[ -n "$GAME" ]]; then
 else
     echo "Launching Battle.net..."
 fi
+
+# Ensure Wine reports as Windows 11 (WoW requires 11+, Proton defaults to win7)
+# The Wine version that apps see via GetVersionEx is controlled by HKCU\Software\Wine\Version,
+# NOT by HKLM\..\CurrentVersion registry keys (those are cosmetic).
+ensure_win11_prefix() {
+    local userreg="$BNET_PREFIX/pfx/user.reg"
+    [[ -f "$userreg" ]] || return
+    if grep -q '"Version"="win11"' "$userreg" 2>/dev/null; then
+        return
+    fi
+    echo "Patching Wine prefix to report Windows 11..."
+    sed -i '/\[Software\\\\Wine\]/,/^\[/ s/"Version"="[^"]*"/"Version"="win11"/' "$userreg"
+}
+ensure_win11_prefix
 
 # Set up Proton environment
 export STEAM_COMPAT_DATA_PATH="$BNET_PREFIX"
