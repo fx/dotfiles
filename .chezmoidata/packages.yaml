@@ -38,6 +38,7 @@ arch:
     # System
     - tailscale
     - hyprshot
+    - cliphist
     - flatpak
     # Development
     - coder-bin
