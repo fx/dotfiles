@@ -57,6 +57,9 @@ arch:
     - gst-plugins-bad
     - gst-plugins-ugly
     - gst-libav
+    # Gaming / Proton tooling
+    - protonup-qt
+    - lug-helper  # Star Citizen on Linux prefix/launcher manager
   device_packages:
     - name: opendeck-bin
       usb_ids:
