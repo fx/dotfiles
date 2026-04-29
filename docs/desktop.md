@@ -67,6 +67,9 @@ The `immediate` rule enables tearing for better frame pacing in games.
 
 ## Gaming with Proton/Wine
 
+Game-specific recipes:
+- [Star Citizen](games/star-citizen.md) — required setup for SC 4.7+ on NVIDIA 595 + Hyprland Wayland multi-monitor
+
 ### Battle.net Launcher
 
 Script: `~/.local/bin/battlenet`

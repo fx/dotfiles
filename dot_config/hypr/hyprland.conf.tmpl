@@ -286,6 +286,15 @@ windowrule = immediate true, match:class WowClassic.exe
 # Game streaming (Moonlight client) - tearing for low latency
 windowrule = immediate true, match:class com.moonlight_stream.Moonlight
 
+# Star Citizen + RSI Launcher: pin to gaming monitor, fullscreen the game,
+# float (don't tile) the launcher. Hyprland tiling fights SC's swapchain
+# (1712x1004 ↔ 3840x2160 thrash) and causes cursor offset under wayland-wine.
+windowrule = monitor DP-6, match:class starcitizen.exe
+windowrule = fullscreen 2, match:class starcitizen.exe
+windowrule = immediate true, match:class starcitizen.exe
+windowrule = monitor DP-6, match:class rsi launcher.exe
+windowrule = float yes, match:class rsi launcher.exe
+
 
 #######################
 ### LOCAL OVERRIDES ###
