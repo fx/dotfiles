@@ -4,7 +4,7 @@
 
 ## Desktop Profile
 
-**When working on desktop-related issues (Hyprland, gaming, Proton/Wine, NVIDIA, Stream Deck), ALWAYS read `docs/DESKTOP.md` first.** It contains critical troubleshooting info and known fixes for common issues.
+**When working on desktop-related issues (Hyprland, gaming, Proton/Wine, NVIDIA, Stream Deck), ALWAYS read `docs/desktop.md` first.** It contains critical troubleshooting info and known fixes for common issues. Game-specific recipes live under `docs/games/` (e.g., `docs/games/star-citizen.md`).
 
 ## Running Dotfiles
 
