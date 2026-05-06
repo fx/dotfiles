@@ -44,46 +44,61 @@ fi
 camera_name=$(echo "$camera" | sed 's/  *usb:.*//')
 echo "Detected: $camera_name"
 
-# List files on camera (retry with USB reset on PTP timeout)
-list_output=$(gphoto2 --list-files 2>&1)
-file_list=$(echo "$list_output" | grep "^#" || true)
+# Find DCIM folders. Real cameras typically have /DCIM; Android MTP exposes
+# storages at /store_xxxxxxxx/DCIM and the root contains unrelated app data
+# that we don't want to traverse (it's slow and trips errors mid-recurse).
+# Strategy: probe /DCIM first, then enumerate root storages and probe each.
+dcim_folders=()
 
-if [[ -z "$file_list" ]] && echo "$list_output" | grep -qi "timeout"; then
-    usb_id=$(lsusb | grep -i "$(echo "$camera_name" | awk '{print $1}')" | grep -oP '[0-9a-f]{4}:[0-9a-f]{4}')
-    if [[ -n "$usb_id" ]] && command -v usbreset &>/dev/null; then
-        echo "PTP timeout, resetting USB device..."
-        sudo usbreset "$usb_id" 2>/dev/null || true
-        sleep 2
-        list_output=$(gphoto2 --list-files 2>&1)
-        file_list=$(echo "$list_output" | grep "^#" || true)
+# Lists immediate child folders of a given path. gphoto2 --list-folders is
+# recursive, so we read only until the first sub-folder breadcrumb.
+list_children() {
+    local parent="$1"
+    gphoto2 --list-folders --folder "$parent" 2>/dev/null | awk -v parent="$parent" '
+        /^There (is|are) [0-9]+ folder/ {
+            if (seen) exit
+            match($0, /'"'"'[^'"'"']+'"'"'/)
+            current = substr($0, RSTART+1, RLENGTH-2)
+            if (current == parent) { seen = 1; next }
+            exit
+        }
+        seen && /^ - / { sub(/^ - /, ""); print }
+    '
+}
+
+probe() {
+    local folder="$1"
+    if gphoto2 --list-files --folder "$folder" >/dev/null 2>&1; then
+        dcim_folders+=("$folder")
     fi
+}
+
+probe "/DCIM"
+
+if [[ ${#dcim_folders[@]} -eq 0 ]]; then
+    mapfile -t storages < <(list_children /)
+    for storage in "${storages[@]}"; do
+        [[ -z "$storage" ]] && continue
+        probe "/$storage/DCIM"
+    done
 fi
 
-if [[ -z "$file_list" ]]; then
-    if echo "$list_output" | grep -qi "timeout"; then
-        echo "Error: Camera timed out. Try unplugging and replugging the USB cable." >&2
-        exit 1
-    fi
-    echo "No files found on camera."
-    exit 0
+if [[ ${#dcim_folders[@]} -eq 0 ]]; then
+    echo "No DCIM folder found on device. Is this a camera/phone with photos?" >&2
+    exit 1
 fi
 
-file_count=$(echo "$file_list" | wc -l)
-
-if [[ "$file_count" -eq 0 ]]; then
-    echo "No files found on camera."
-    exit 0
-fi
-
-echo "Found $file_count files on camera."
+echo "DCIM folders: ${dcim_folders[*]}"
 
 if $DRY_RUN; then
     echo ""
-    echo "Files on camera:"
-    echo "$file_list" | while read -r line; do
-        fname=$(echo "$line" | awk '{print $2}')
-        size=$(echo "$line" | awk '{print $4}')
-        echo "  $fname (${size} KB)"
+    for folder in "${dcim_folders[@]}"; do
+        echo "Files in $folder:"
+        gphoto2 --list-files --folder "$folder" 2>/dev/null | grep "^#" | while read -r line; do
+            fname=$(echo "$line" | awk '{print $2}')
+            size=$(echo "$line" | awk '{print $4}')
+            echo "  $fname (${size} KB)"
+        done
     done
     echo ""
     echo "Would be organized into $DEST/YYYY/YYYY-MM-DD/"
@@ -94,8 +109,13 @@ fi
 mkdir -p "$DEST"
 echo "Downloading and organizing by date..."
 
-output=$(gphoto2 --get-all-files --folder / --skip-existing \
-    --filename "$DEST/%Y/%Y-%m-%d/%f.%C" 2>&1)
+output=""
+for folder in "${dcim_folders[@]}"; do
+    echo "Importing from $folder..."
+    folder_output=$(gphoto2 --get-all-files -R --folder "$folder" --skip-existing \
+        --filename "$DEST/%Y/%Y-%m-%d/%f.%C" 2>&1)
+    output+="$folder_output"$'\n'
+done
 
 imported=$(echo "$output" | grep -c "^Saving " || true)
 skipped=$(echo "$output" | grep -c "^Skipping " || true)
