@@ -27,4 +27,5 @@ shared/
 .local/bin/volume-control
 .local/bin/ha-light
 .local/bin/battlenet
+.local/share/applications/
 {{ end }}
