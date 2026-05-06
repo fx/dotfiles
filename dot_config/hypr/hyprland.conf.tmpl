@@ -163,7 +163,7 @@ $mainMod = ALT
 bind = $mainMod, Return, exec, $terminal
 bind = $mainMod, Q, killactive,
 bind = $mainMod, L, exec, hyprlock
-bind = $mainMod, E, exec, $fileManager
+bind = $mainMod, E, exec, $HOME/.local/bin/ai pick
 bind = $mainMod, V, togglefloating,
 bind = $mainMod, D, exec, $menu
 bind = $mainMod, P, pseudo,
@@ -230,7 +230,7 @@ bindm = $mainMod, mouse:273, resizewindow
 
 # Screenshots (hyprshot) - saves to ~/Pictures/Screenshots and copies to clipboard
 bind = CTRL SHIFT, 3, exec, hyprshot -m region -o ~/Pictures/Screenshots
-bind = CTRL SHIFT, 4, exec, hyprshot -m output -o ~/Pictures/Screenshots
+bind = CTRL SHIFT, 4, exec, mkdir -p ~/Pictures/Screenshots && f=~/Pictures/Screenshots/$(date +%Y-%m-%d-%H%M%S)_screenshot.png && grim -o "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" "$f" && wl-copy < "$f"
 
 # Media keys
 bindel = ,XF86AudioRaiseVolume, exec, wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+
