@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install Claude Code via native installer
+# Install Claude Code via mise (global)
 # This script runs when its content changes
 
 {{ if .include_defaults -}}
@@ -7,14 +7,18 @@ set -e
 
 CLAUDE_BIN="$HOME/.local/bin/claude"
 
-# Check if Claude is already installed
+if ! command -v mise >/dev/null 2>&1; then
+    echo "⚠️  mise not found, skipping Claude Code install"
+    exit 0
+fi
+
 if [ -x "$CLAUDE_BIN" ]; then
     echo "✓ Claude Code already installed"
     exit 0
 fi
 
-echo "📦 Installing Claude Code..."
-curl -fsSL https://claude.ai/install.sh | bash
+echo "Installing Claude Code via mise..."
+mise use -g claude-code@latest
 
 if [ -x "$CLAUDE_BIN" ]; then
     echo "✓ Claude Code installed successfully"
