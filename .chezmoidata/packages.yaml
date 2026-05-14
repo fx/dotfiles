@@ -56,12 +56,6 @@ arch:
     - gst-plugins-bad
     - gst-plugins-ugly
     - gst-libav
-    # Keyring (required by Anytype for recovery phrase storage)
-    - gnome-keyring
-    - libsecret
-    - gcr
-    # Knowledge management
-    - anytype-alpha-bin
     # Gaming / Proton tooling
     - protonup-qt
     - lug-helper  # Star Citizen on Linux prefix/launcher manager
