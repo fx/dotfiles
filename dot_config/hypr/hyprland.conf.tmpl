@@ -33,6 +33,7 @@ exec-once = discord --start-minimized
 exec-once = 1password --silent
 exec-once = opendeck
 exec-once = monitor-check
+exec-once = xrandr --output DP-6 --primary
 exec-once = wl-paste --type text --watch cliphist store
 exec-once = wl-paste --type image --watch cliphist store
 
@@ -292,6 +293,12 @@ windowrule = fullscreen 2, match:class starcitizen.exe
 windowrule = immediate true, match:class starcitizen.exe
 windowrule = monitor DP-6, match:class rsi launcher.exe
 windowrule = float yes, match:class rsi launcher.exe
+
+# Stellaris (Steam App 281990): same tiling-vs-fullscreen fight as SC.
+# float prevents Hyprland tiling from constraining the resolution envelope;
+# monitor pins it to the 4K display so the game sees the right resolution list.
+windowrule = monitor DP-6, match:class steam_app_281990
+windowrule = float yes, match:class steam_app_281990
 
 
 #######################

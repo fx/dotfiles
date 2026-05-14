@@ -65,6 +65,27 @@ windowrule = immediate true, match:class Wow.exe
 
 The `immediate` rule enables tearing for better frame pacing in games.
 
+### Game resolution / fullscreen issues
+
+If a game can't select 4K or ignores the monitor resolution after going fullscreen, the cause is Hyprland tiling the game window — the tiled size caps what the game sees as available resolution, and the swapchain thrashes between the tiled dimensions and the requested fullscreen size.
+
+**Fix:** add per-game window rules to float the window and pin it to the gaming monitor:
+```
+windowrule = monitor DP-6, match:class steam_app_<APPID>
+windowrule = float yes, match:class steam_app_<APPID>
+```
+
+Replace `DP-6` with your gaming monitor name (`hyprctl monitors` to check) and `<APPID>` with the Steam App ID (visible in the store URL).
+
+If the game uses exclusive fullscreen and still misbehaves, also add:
+```
+windowrule = fullscreen 2, match:class steam_app_<APPID>
+```
+
+**XWayland primary monitor:** The autostart includes `xrandr --output DP-6 --primary` so XWayland games default to the 4K monitor. If you change which monitor is primary, update this line.
+
+Active per-game rules: Star Citizen (`starcitizen.exe`), Stellaris (`steam_app_281990`).
+
 ## Gaming with Proton/Wine
 
 Game-specific recipes:
