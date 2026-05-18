@@ -44,11 +44,15 @@ fi
 camera_name=$(echo "$camera" | sed 's/  *usb:.*//')
 echo "Detected: $camera_name"
 
-# Find DCIM folders. Real cameras typically have /DCIM; Android MTP exposes
+# Find import roots. Real cameras typically have /DCIM; Android MTP exposes
 # storages at /store_xxxxxxxx/DCIM and the root contains unrelated app data
 # that we don't want to traverse (it's slow and trips errors mid-recurse).
-# Strategy: probe /DCIM first, then enumerate root storages and probe each.
-dcim_folders=()
+# Sony MTP cameras (e.g., ZV-E10M2) skip DCIM entirely and put date folders
+# like /store_xxxxxxxx/YYYY-MM-DD/ directly under the storage.
+# Strategy: probe /DCIM first, then per-storage /DCIM; if nothing matches,
+# fall back to each storage root (only safe for camera-style storages with
+# no app data — Android always has DCIM so it never hits this branch).
+import_roots=()
 
 # Lists immediate child folders of a given path. gphoto2 --list-folders is
 # recursive, so we read only until the first sub-folder breadcrumb.
@@ -69,13 +73,14 @@ list_children() {
 probe() {
     local folder="$1"
     if gphoto2 --list-files --folder "$folder" >/dev/null 2>&1; then
-        dcim_folders+=("$folder")
+        import_roots+=("$folder")
     fi
 }
 
 probe "/DCIM"
 
-if [[ ${#dcim_folders[@]} -eq 0 ]]; then
+storages=()
+if [[ ${#import_roots[@]} -eq 0 ]]; then
     mapfile -t storages < <(list_children /)
     for storage in "${storages[@]}"; do
         [[ -z "$storage" ]] && continue
@@ -83,18 +88,26 @@ if [[ ${#dcim_folders[@]} -eq 0 ]]; then
     done
 fi
 
-if [[ ${#dcim_folders[@]} -eq 0 ]]; then
-    echo "No DCIM folder found on device. Is this a camera/phone with photos?" >&2
+# Sony MTP fallback: no DCIM anywhere, so use storage roots directly.
+if [[ ${#import_roots[@]} -eq 0 ]]; then
+    for storage in "${storages[@]}"; do
+        [[ -z "$storage" ]] && continue
+        probe "/$storage"
+    done
+fi
+
+if [[ ${#import_roots[@]} -eq 0 ]]; then
+    echo "No photos found on device. Is this a camera/phone with photos?" >&2
     exit 1
 fi
 
-echo "DCIM folders: ${dcim_folders[*]}"
+echo "Import roots: ${import_roots[*]}"
 
 if $DRY_RUN; then
     echo ""
-    for folder in "${dcim_folders[@]}"; do
-        echo "Files in $folder:"
-        gphoto2 --list-files --folder "$folder" 2>/dev/null | grep "^#" | while read -r line; do
+    for folder in "${import_roots[@]}"; do
+        echo "Files under $folder:"
+        gphoto2 --list-files -R --folder "$folder" 2>/dev/null | grep "^#" | while read -r line; do
             fname=$(echo "$line" | awk '{print $2}')
             size=$(echo "$line" | awk '{print $4}')
             echo "  $fname (${size} KB)"
@@ -110,7 +123,7 @@ mkdir -p "$DEST"
 echo "Downloading and organizing by date..."
 
 output=""
-for folder in "${dcim_folders[@]}"; do
+for folder in "${import_roots[@]}"; do
     echo "Importing from $folder..."
     folder_output=$(gphoto2 --get-all-files -R --folder "$folder" --skip-existing \
         --filename "$DEST/%Y/%Y-%m-%d/%f.%C" 2>&1)
