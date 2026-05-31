@@ -1,0 +1,31 @@
+#!/bin/bash
+# Install CodeRabbit CLI on all systems
+# This script runs when its content changes
+
+{{ if .include_defaults -}}
+set -e
+
+CODERABBIT_BIN="$HOME/.local/bin/coderabbit"
+
+if [ -x "$CODERABBIT_BIN" ] || command -v coderabbit >/dev/null 2>&1; then
+    echo "✓ CodeRabbit CLI already installed"
+    exit 0
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+    echo "⚠️  curl not found, skipping CodeRabbit CLI install"
+    exit 0
+fi
+
+echo "Installing CodeRabbit CLI..."
+# CI=1 makes the installer skip the interactive browser sign-in prompt;
+# authenticate later with `coderabbit auth login`.
+curl -fsSL https://cli.coderabbit.ai/install.sh | CI=1 sh
+
+if [ -x "$CODERABBIT_BIN" ] || command -v coderabbit >/dev/null 2>&1; then
+    echo "✓ CodeRabbit CLI installed successfully"
+else
+    echo "⚠️  CodeRabbit CLI installation may have failed"
+    exit 1
+fi
+{{ end -}}
