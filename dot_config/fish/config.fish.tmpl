@@ -19,13 +19,14 @@ end
 # Aliases
 alias claude='ANTHROPIC_MODEL=claude-opus-4-7 ENABLE_CLAUDEAI_MCP_SERVERS=false command claude --dangerously-skip-permissions'
 
-# cc — attach to (or create) a persistent tmux session running Claude Code.
-function cc --description 'Persistent Claude Code session via tmux'
+# ccc — attach to (or create) a persistent tmux session running Claude Code.
+# Named ccc (not cc) to avoid shadowing the system C compiler at /usr/bin/cc.
+function ccc --description 'Persistent Claude Code session via tmux'
     # If root (the runtime container may run the agent as root), delegate to the
-    # bash `cc`, which drops to the container's primary non-root user (UID 1000) —
+    # bash `ccc`, which drops to the container's primary non-root user (UID 1000) —
     # Claude refuses --dangerously-skip-permissions as root. No-op on the desktop.
     if test (id -u) -eq 0; and id -un 1000 >/dev/null 2>&1
-        exec bash -ic cc
+        exec bash -ic ccc
     end
     if not type -q tmux
         claude
