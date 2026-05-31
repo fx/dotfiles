@@ -31,10 +31,21 @@ else
     fi
 fi
 
-# In Coder workspaces, ensure the shared-home .codex dir exists so
-# setup-shared-symlinks symlinks ~/.codex → it, persisting `codex login`
-# (auth.json + config.toml) across workspace rebuilds.
+# In Coder workspaces, persist Codex config + interactive login (~/.codex) to the
+# shared home so it survives workspace rebuilds. Create the symlink here directly
+# rather than relying on setup-shared-symlinks: that script is run_onchange and
+# won't re-run on an unchanged upgrade, so ~/.codex wouldn't be linked.
 if [ "$CODER" = "true" ]; then
-    mkdir -p "${DOTFILES_SHARED_HOME:-/shared/home/default}/.codex"
+    SHARED_CODEX="${DOTFILES_SHARED_HOME:-/shared/home/default}/.codex"
+    mkdir -p "$SHARED_CODEX"
+    if [ ! -L "$HOME/.codex" ]; then
+        # Migrate any pre-existing real ~/.codex (e.g. a prior login) into shared
+        # without clobbering, then replace it with the symlink.
+        if [ -d "$HOME/.codex" ]; then
+            cp -an "$HOME/.codex/." "$SHARED_CODEX/" 2>/dev/null || true
+            rm -rf "$HOME/.codex"
+        fi
+        ln -sfn "$SHARED_CODEX" "$HOME/.codex"
+    fi
 fi
 {{ end -}}
