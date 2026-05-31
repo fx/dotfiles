@@ -17,7 +17,7 @@ if type -q mise
 end
 
 # Aliases
-alias claude='ANTHROPIC_MODEL=claude-opus-4-7 ENABLE_CLAUDEAI_MCP_SERVERS=false command claude --dangerously-skip-permissions'
+alias claude='DISABLE_AUTOUPDATER=1 ENABLE_CLAUDEAI_MCP_SERVERS=false command claude --dangerously-skip-permissions'
 
 # ccc — attach to (or create) a persistent tmux session running Claude Code.
 # Named ccc (not cc) to avoid shadowing the system C compiler at /usr/bin/cc.
@@ -33,6 +33,18 @@ function ccc --description 'Persistent Claude Code session via tmux'
         return
     end
     tmux attach -t claude 2>/dev/null; or tmux new -s claude "fish -C claude"
+end
+
+# cdx — attach to (or create) a persistent tmux session running the Codex CLI.
+function cdx --description 'Persistent Codex CLI session via tmux'
+    if test (id -u) -eq 0; and id -un 1000 >/dev/null 2>&1
+        exec bash -ic cdx
+    end
+    if not type -q tmux
+        codex
+        return
+    end
+    tmux attach -t codex 2>/dev/null; or tmux new -s codex "fish -C codex"
 end
 
 # Source local machine-specific config (not managed by dotfiles)

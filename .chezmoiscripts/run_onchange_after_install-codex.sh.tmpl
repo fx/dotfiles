@@ -1,0 +1,51 @@
+#!/bin/bash
+# Install the Codex CLI via mise (npm backend) and ensure its shared-home config
+# dir exists so setup-shared-symlinks can persist interactive login (~/.codex).
+# This script runs when its content changes.
+
+{{ if .include_defaults -}}
+set -e
+
+if ! command -v mise >/dev/null 2>&1; then
+    echo "⚠️  mise not found, skipping Codex install"
+    exit 0
+fi
+
+# codex is a mise-managed tool (npm:@openai/codex) with a shim under
+# ~/.local/share/mise/shims; verify with `mise which` (works without mise on PATH).
+codex_installed() { mise which codex >/dev/null 2>&1; }
+
+if codex_installed; then
+    echo "✓ Codex CLI already installed"
+else
+    echo "Installing Codex CLI via mise (npm:@openai/codex)..."
+    # The npm backend needs node; ensure it (this script may run before the
+    # general mise-tools install). node@lts is already in the mise config.
+    mise use -g node@lts >/dev/null 2>&1 || true
+    mise use -g "npm:@openai/codex@latest"
+    if codex_installed; then
+        echo "✓ Codex CLI installed successfully"
+    else
+        echo "⚠️  Codex CLI installation may have failed"
+        exit 1
+    fi
+fi
+
+# In Coder workspaces, persist Codex config + interactive login (~/.codex) to the
+# shared home so it survives workspace rebuilds. Create the symlink here directly
+# rather than relying on setup-shared-symlinks: that script is run_onchange and
+# won't re-run on an unchanged upgrade, so ~/.codex wouldn't be linked.
+if [ "$CODER" = "true" ]; then
+    SHARED_CODEX="${DOTFILES_SHARED_HOME:-/shared/home/default}/.codex"
+    mkdir -p "$SHARED_CODEX"
+    if [ ! -L "$HOME/.codex" ]; then
+        # Migrate any pre-existing real ~/.codex (e.g. a prior login) into shared
+        # without clobbering, then replace it with the symlink.
+        if [ -d "$HOME/.codex" ]; then
+            cp -an "$HOME/.codex/." "$SHARED_CODEX/" 2>/dev/null || true
+            rm -rf "$HOME/.codex"
+        fi
+        ln -sfn "$SHARED_CODEX" "$HOME/.codex"
+    fi
+fi
+{{ end -}}
