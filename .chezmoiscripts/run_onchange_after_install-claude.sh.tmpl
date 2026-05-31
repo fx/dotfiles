@@ -12,7 +12,14 @@ if ! command -v mise >/dev/null 2>&1; then
     exit 0
 fi
 
-if [ -x "$CLAUDE_BIN" ]; then
+# claude-code is a mise-managed tool: its binary lives under mise's install dir
+# with a shim in ~/.local/share/mise/shims, NOT at ~/.local/bin/claude. Verify
+# with `mise which` (works without mise being activated on PATH), falling back to
+# a direct ~/.local/bin install. Checking only $CLAUDE_BIN false-negatives and
+# aborts the chezmoi run before later scripts (e.g. settings.json) can execute.
+claude_installed() { [ -x "$CLAUDE_BIN" ] || mise which claude >/dev/null 2>&1; }
+
+if claude_installed; then
     echo "✓ Claude Code already installed"
     exit 0
 fi
@@ -20,7 +27,7 @@ fi
 echo "Installing Claude Code via mise..."
 mise use -g claude-code@latest
 
-if [ -x "$CLAUDE_BIN" ]; then
+if claude_installed; then
     echo "✓ Claude Code installed successfully"
 else
     echo "⚠️  Claude Code installation may have failed"
