@@ -2,18 +2,18 @@
 
 # Claude CLI - skip permissions prompt
 alias claude="ENABLE_CLAUDEAI_MCP_SERVERS=false claude --dangerously-skip-permissions"
-alias aa="agentapi attach"
-agentapi-restart() {
-  echo "Stopping agentapi..."
-  pkill -f "agentapi server" 2>/dev/null
-  while pgrep -f "agentapi server" >/dev/null 2>&1; do sleep 0.5; done
-  echo "Starting agentapi..."
-  nohup ~/.claude-module/scripts/agentapi-start.sh < /dev/null > /tmp/agentapi-restart.log 2>&1 &
-  sleep 3
-  if pgrep -f "agentapi server" >/dev/null 2>&1; then
-    echo "agentapi restarted (pid $(pgrep -f 'agentapi server')). Use 'aa' to attach."
-  else
-    echo "agentapi failed to start:"
-    tail -20 /tmp/agentapi-restart.log
+# cc — attach to (or create) a persistent tmux session running Claude Code.
+# Survives terminal disconnects and is reachable over SSH; `claude` above still
+# launches Claude directly (no tmux).
+cc() {
+  # Coder envbuilder workspaces run the agent as root, but Claude refuses
+  # --dangerously-skip-permissions as root, so hop to the vscode user. Keep HOME
+  # (=/root) so the dotfiles (cc, claude alias, ~/.tmux.conf) and ~/.claude config
+  # — which install under root's home in those workspaces — are still found.
+  # (No-op outside them — e.g. on the desktop, where there's no vscode user.)
+  if [ "$(id -u)" = "0" ] && id vscode >/dev/null 2>&1; then
+    exec su -s /bin/bash vscode -c "export HOME='$HOME'; exec bash -ic cc"
   fi
+  command -v tmux >/dev/null 2>&1 || { claude; return; }
+  tmux attach -t claude 2>/dev/null || tmux new -s claude "bash -ic 'claude; exec bash -i'"
 }
