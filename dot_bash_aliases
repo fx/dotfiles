@@ -6,13 +6,14 @@ alias claude="ENABLE_CLAUDEAI_MCP_SERVERS=false claude --dangerously-skip-permis
 # Survives terminal disconnects and is reachable over SSH; `claude` above still
 # launches Claude directly (no tmux).
 cc() {
-  # Coder envbuilder workspaces run the agent as root, but Claude refuses
-  # --dangerously-skip-permissions as root, so hop to the vscode user. Keep HOME
-  # (=/root) so the dotfiles (cc, claude alias, ~/.tmux.conf) and ~/.claude config
-  # — which install under root's home in those workspaces — are still found.
-  # (No-op outside them — e.g. on the desktop, where there's no vscode user.)
-  if [ "$(id -u)" = "0" ] && id vscode >/dev/null 2>&1; then
-    exec su -s /bin/bash vscode -c "export HOME='$HOME'; exec bash -ic cc"
+  # If we're root (the runtime container may run the agent as root), drop to the
+  # container's primary non-root user (UID 1000 by devcontainer convention) —
+  # Claude refuses --dangerously-skip-permissions as root. Keep HOME so the dotfiles
+  # (cc, claude alias, ~/.tmux.conf) and ~/.claude config — installed under the
+  # current home — are still found. No-op when already non-root (e.g. the desktop).
+  if [ "$(id -u)" = "0" ]; then
+    local u; u=$(id -un 1000 2>/dev/null) || true
+    [ -n "$u" ] && exec su -s /bin/bash "$u" -c "export HOME='$HOME'; exec bash -ic cc"
   fi
   command -v tmux >/dev/null 2>&1 || { claude; return; }
   tmux attach -t claude 2>/dev/null || tmux new -s claude "bash -ic 'claude; exec bash -i'"
