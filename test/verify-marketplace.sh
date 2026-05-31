@@ -19,9 +19,10 @@ fi
 
 echo "✓ Claude marketplace configured correctly"
 
-# Verify Claude Code is installed (mise installs to ~/.local/bin)
-CLAUDE_BIN="$HOME/.local/bin/claude"
-if [ -x "$CLAUDE_BIN" ]; then
+# Verify Claude Code is installed. mise installs it as a managed tool with a shim
+# under ~/.local/share/mise/shims (NOT ~/.local/bin), and mise isn't necessarily on
+# PATH in this verification shell, so check both locations directly.
+if [ -x "$HOME/.local/bin/claude" ] || [ -x "$HOME/.local/share/mise/shims/claude" ]; then
     echo "✓ Claude Code installed"
 else
     echo "✗ Claude Code not installed"
