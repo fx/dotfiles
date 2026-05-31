@@ -1,7 +1,7 @@
 # Bash aliases
 
-# Claude CLI - skip permissions prompt
-alias claude="ENABLE_CLAUDEAI_MCP_SERVERS=false claude --dangerously-skip-permissions"
+# Claude CLI - skip permissions prompt; DISABLE_AUTOUPDATER so mise owns the version.
+alias claude="DISABLE_AUTOUPDATER=1 ENABLE_CLAUDEAI_MCP_SERVERS=false claude --dangerously-skip-permissions"
 # ccc — attach to (or create) a persistent tmux session running Claude Code.
 # Survives terminal disconnects and is reachable over SSH; `claude` above still
 # launches Claude directly (no tmux). Named ccc (not cc) to avoid shadowing the
@@ -18,4 +18,16 @@ ccc() {
   fi
   command -v tmux >/dev/null 2>&1 || { claude; return; }
   tmux attach -t claude 2>/dev/null || tmux new -s claude "bash -ic 'claude; exec bash -i'"
+}
+
+# cdx — attach to (or create) a persistent tmux session running the Codex CLI.
+# Sibling of ccc. `codex` config + interactive login live in the shared-home
+# ~/.codex (persisted across workspaces), so run `codex login` once.
+cdx() {
+  if [ "$(id -u)" = "0" ]; then
+    local u; u=$(id -un 1000 2>/dev/null) || true
+    [ -n "$u" ] && exec su -s /bin/bash "$u" -c "export HOME='$HOME'; exec bash -ic cdx"
+  fi
+  command -v tmux >/dev/null 2>&1 || { codex; return; }
+  tmux attach -t codex 2>/dev/null || tmux new -s codex "bash -ic 'codex; exec bash -i'"
 }
