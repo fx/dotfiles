@@ -1,7 +1,10 @@
 # Bash aliases
 
 # Claude CLI - skip permissions prompt; DISABLE_AUTOUPDATER so mise owns the version.
-alias claude="DISABLE_AUTOUPDATER=1 ENABLE_CLAUDEAI_MCP_SERVERS=false claude --dangerously-skip-permissions"
+# ENABLE_CLAUDEAI_MCP_SERVERS defers to the environment (the Coder pod sets it per
+# dotfiles profile: true for onXmaps, false elsewhere) and defaults to false off-cluster.
+# Single-quoted so ${...} expands at invocation, not when this file is sourced.
+alias claude='DISABLE_AUTOUPDATER=1 ENABLE_CLAUDEAI_MCP_SERVERS=${ENABLE_CLAUDEAI_MCP_SERVERS:-false} claude --dangerously-skip-permissions'
 # ccc — attach to (or create) a persistent tmux session running Claude Code.
 # Survives terminal disconnects and is reachable over SSH; `claude` above still
 # launches Claude directly (no tmux). Named ccc (not cc) to avoid shadowing the
