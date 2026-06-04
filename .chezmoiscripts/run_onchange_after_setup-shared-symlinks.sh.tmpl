@@ -40,6 +40,29 @@ symlink_to_home() {
 }
 
 # ========================================
+# Function: Persist a ~/.config/<name> directory via /shared/.config
+# ========================================
+# Symlinks ~/.config/<name> -> /shared/.config/<name> so its contents
+# (credentials, caches, etc.) survive workspace rebuilds. A pre-existing real
+# directory is migrated into the shared location once, then backed up.
+symlink_shared_config() {
+    local name="$1"
+    local shared="/shared/.config/$name"
+    local target="$HOME/.config/$name"
+
+    mkdir -p "$shared"
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
+        cp -rn "$target/." "$shared/" 2>/dev/null || true
+        local backup="${shared}.backup_$(date +%Y%m%d_%H%M%S)"
+        mv "$target" "$backup"
+        echo "✓ Migrated existing ~/.config/$name into $shared (backup: $backup)"
+    fi
+    mkdir -p "$HOME/.config"
+    ln -sfn "$shared" "$target"
+    echo "✓ ~/.config/$name -> $shared"
+}
+
+# ========================================
 # CODER WORKSPACE SETUP
 # ========================================
 # Uses persistent /shared/ directories for profile-based configuration
@@ -84,6 +107,16 @@ if [ "$CODER" = "true" ]; then
         ln -sfn "$GH_SHARED_CONFIG" "$HOME/.config/gh"
         echo "✓ GitHub CLI symlinked to $GH_SHARED_CONFIG"
     fi
+
+    # Persist selected ~/.config/* directories to /shared/.config so their
+    # contents (credentials, caches, etc.) survive workspace rebuilds.
+    # Add directory names here to share more config folders.
+    SHARED_CONFIG_DIRS=(
+        gcloud
+    )
+    for cfg in "${SHARED_CONFIG_DIRS[@]}"; do
+        symlink_shared_config "$cfg"
+    done
 
 fi
 {{ end -}}
