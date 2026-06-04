@@ -51,8 +51,15 @@ symlink_shared_config() {
     local target="$HOME/.config/$name"
 
     mkdir -p "$shared"
+    # Migrate a pre-existing real directory into the shared location once. Only
+    # swap it for the symlink if the copy fully succeeds — otherwise leave the
+    # real config in place and bail, so we never symlink to an incomplete copy
+    # (which would leave the real data only in the backup).
     if [ -e "$target" ] && [ ! -L "$target" ]; then
-        cp -rn "$target/." "$shared/" 2>/dev/null || true
+        if ! cp -a "$target/." "$shared/"; then
+            echo "⚠ Could not migrate ~/.config/$name into $shared; leaving real config in place" >&2
+            return 0
+        fi
         local backup="${shared}.backup_$(date +%Y%m%d_%H%M%S)"
         mv "$target" "$backup"
         echo "✓ Migrated existing ~/.config/$name into $shared (backup: $backup)"
