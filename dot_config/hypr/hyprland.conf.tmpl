@@ -57,6 +57,11 @@ env = QT_QPA_PLATFORMTHEME,qt5ct
 env = LIBVA_DRIVER_NAME,nvidia
 env = __GLX_VENDOR_LIBRARY_NAME,nvidia
 env = NVD_BACKEND,direct
+# Hide the AMD iGPU's Vulkan ICD so apps don't default to it.
+# Zen 5 desktop CPUs (e.g. 9850X3D) ship a 2-CU RDNA2 iGPU that the Vulkan
+# loader enumerates as device 0 — Chrome/games render on it instead of the
+# dGPU, causing stutter and low FPS. No-op on pure-NVIDIA systems.
+env = VK_LOADER_DRIVERS_DISABLE,*radeon*
 {{ end -}}
 
 

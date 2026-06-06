@@ -170,6 +170,28 @@ env = NVD_BACKEND,direct
 
 The dotfiles configure WirePlumber to handle NVIDIA HDMI audio properly. Config is generated during `./install.sh` when an NVIDIA GPU is detected.
 
+### Apps render on the AMD iGPU instead of the dGPU (stutter / low FPS)
+
+**Symptoms:** Chrome video playback stutters and games run at a fraction of expected FPS (e.g. Hytale at ~15fps), even though the RTX dGPU sits nearly idle in `nvidia-smi`.
+
+**Cause:** Zen 5 desktop CPUs (e.g. Ryzen 7 9850X3D, "Granite Ridge") include a tiny 2-CU RDNA2 iGPU. With both `nvidia_icd.json` and `radeon_icd.json` installed, the Vulkan loader enumerates the **iGPU as device 0**. Vulkan apps that don't explicitly pick a device — Chrome's compositor/video path and many games — default to the iGPU. OpenGL is unaffected (it correctly defaults to the dGPU via `__GLX_VENDOR_LIBRARY_NAME`).
+
+**Diagnose:**
+```bash
+vulkaninfo --summary | grep deviceName   # iGPU listed first = problem
+```
+
+**Fix:** Hide the AMD Vulkan ICD so only the dGPU is visible. Set in the NVIDIA env block of `hyprland.conf.tmpl`:
+```
+env = VK_LOADER_DRIVERS_DISABLE,*radeon*
+```
+The Vulkan loader does the glob matching itself (not the shell). No-op on pure-NVIDIA systems where no radeon ICD exists. Takes effect after `./install.sh` + a fresh Hyprland session (re-login).
+
+**Verify:**
+```bash
+VK_LOADER_DRIVERS_DISABLE='*radeon*' vulkaninfo --summary | grep deviceName  # only the dGPU
+```
+
 ## DisplayPort Monitor Not Detected on Cold Boot
 
 ### Symptoms
