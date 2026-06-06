@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# flatpak-nvidia-sync — keep the Flatpak NVIDIA GL driver extension in lockstep
+# with the host kernel module.
+#
+# Flatpaks are sandboxed and ship their own NVIDIA userspace driver via the
+# org.freedesktop.Platform.GL[32].nvidia-<version> extension, which must EXACTLY
+# match the host kernel module version. After a host driver upgrade the matching
+# extension is often not pulled automatically, so sandboxed apps (e.g. Hytale)
+# silently fall back to llvmpipe software rendering → single-digit FPS.
+#
+# Run at login (Hyprland exec-once). Since NVIDIA driver upgrades require a
+# reboot to load the new kernel module, login is exactly when the host version
+# settles — so this self-heals on the first session after an upgrade. It's a
+# cheap local no-op (just `flatpak list`) whenever already in sync.
+#
+# See docs/desktop.md → "Flatpak games run at single-digit FPS after an NVIDIA
+# driver update".
+set -uo pipefail
+
+command -v flatpak >/dev/null 2>&1 || exit 0
+[ -r /proc/driver/nvidia/version ] || exit 0   # NVIDIA not loaded → nothing to do
+
+# "595.71.05" -> "595-71-05" (the extension branch naming)
+ver=$(grep -oE '[0-9]+\.[0-9]+\.[0-9]+' /proc/driver/nvidia/version | head -1)
+[ -n "$ver" ] || exit 0
+branch=${ver//./-}
+
+changed=0
+# User scope only: that's where desktop/gaming flatpaks live and where we have
+# permission without a polkit prompt. System-scope flatpaks would auth-prompt.
+while IFS= read -r e; do
+  [ -n "$e" ] || continue
+  base=${e%.nvidia-*}                 # org.freedesktop.Platform.GL or .GL32
+  want="${base}.nvidia-${branch}"
+  [ "$e" = "$want" ] && continue      # already matches the host driver
+  if flatpak install --user --noninteractive --assumeyes flathub "$want" 2>/dev/null; then
+    flatpak uninstall --user --noninteractive --assumeyes "$e" 2>/dev/null || true
+    changed=1
+  fi
+done < <(flatpak list --user --columns=application 2>/dev/null \
+           | grep -E '^org\.freedesktop\.Platform\.GL(32)?\.nvidia-')
+
+if [ "$changed" = 1 ] && command -v notify-send >/dev/null 2>&1; then
+  notify-send "Flatpak NVIDIA driver" "Synced GL extension to host driver ${ver}"
+fi
+exit 0

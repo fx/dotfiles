@@ -33,6 +33,9 @@ exec-once = discord --start-minimized
 exec-once = 1password --silent
 exec-once = opendeck
 exec-once = monitor-check
+{{ if output "sh" "-c" "lspci 2>/dev/null | grep -qi nvidia && echo nvidia || echo other" | trim | eq "nvidia" -}}
+exec-once = flatpak-nvidia-sync
+{{ end -}}
 exec-once = xrandr --output DP-6 --primary
 exec-once = wl-paste --type text --watch cliphist store
 exec-once = wl-paste --type image --watch cliphist store

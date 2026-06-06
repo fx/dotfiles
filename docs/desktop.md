@@ -170,6 +170,30 @@ env = NVD_BACKEND,direct
 
 The dotfiles configure WirePlumber to handle NVIDIA HDMI audio properly. Config is generated during `./install.sh` when an NVIDIA GPU is detected.
 
+### Flatpak games run at single-digit FPS after an NVIDIA driver update
+
+**Symptoms:** A Flatpak app/game (e.g. Hytale, `com.hypixel.HytaleLauncher`) runs at ~5fps even though native games and `nvidia-smi` are fine. Often appears right after a system NVIDIA driver update.
+
+**Cause:** Flatpaks are sandboxed and ship their **own** NVIDIA userspace driver via a GL extension (`org.freedesktop.Platform.GL.nvidia-<version>`). This extension version must **exactly match** the host kernel module version (`cat /proc/driver/nvidia/version`). When the host driver is updated but the matching Flatpak extension isn't pulled, the in-sandbox NVIDIA GL/Vulkan context fails to initialize and the app silently falls back to **llvmpipe software rendering**.
+
+**Diagnose:**
+```bash
+cat /proc/driver/nvidia/version | head -1        # host driver, e.g. 595.71.05
+flatpak list | grep -i nvidia                     # installed extension version(s)
+```
+A version mismatch (e.g. host `595-71-05` vs extension `590-48-01`) is the problem.
+
+**Fix:** Install the matching extension and remove the stale one. Note Flathub is often registered in **both** `--system` and `--user`; match the install scope of the app (Hytale is `--user`):
+```bash
+flatpak install --user flathub org.freedesktop.Platform.GL.nvidia-595-71-05
+flatpak uninstall --user org.freedesktop.Platform.GL.nvidia-590-48-01
+```
+Then fully quit and relaunch the Flatpak (no reboot needed). `flatpak remote-ls --user flathub --runtime --columns=application,branch | grep GL.nvidia` lists available versions.
+
+**Prevent (automated):** The `flatpak-nvidia-sync` script (`dot_local/bin/`) reconciles the user-scope Flatpak NVIDIA GL extension to the host kernel driver. It runs at login via Hyprland `exec-once` (NVIDIA systems only). Because driver upgrades require a reboot to load the new kernel module, the first session afterwards self-heals: the script reads `/proc/driver/nvidia/version`, pulls the matching `org.freedesktop.Platform.GL.nvidia-<version>` extension, removes the stale one, and notifies via `notify-send`. It's a cheap local no-op when already in sync. Run it manually any time with `flatpak-nvidia-sync`.
+
+> Scope note: only **user**-scope Flatpaks are reconciled (no polkit prompt at login). System-scope Flatpaks still need a manual `sudo flatpak update`.
+
 ### Apps render on the AMD iGPU instead of the dGPU (stutter / low FPS)
 
 **Symptoms:** Chrome video playback stutters and games run at a fraction of expected FPS (e.g. Hytale at ~15fps), even though the RTX dGPU sits nearly idle in `nvidia-smi`.
