@@ -11,6 +11,11 @@ source /usr/share/cachyos-fish-config/cachyos-config.fish
 # Add local bin to PATH
 fish_add_path -g ~/.local/bin
 
+# Point at systemd user ssh-agent socket (socket-activated on demand)
+if test -z "$SSH_AUTH_SOCK"; and test -n "$XDG_RUNTIME_DIR"
+    set -gx SSH_AUTH_SOCK $XDG_RUNTIME_DIR/ssh-agent.socket
+end
+
 # Mise activation
 if type -q mise
     mise activate fish | source

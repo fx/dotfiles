@@ -1,0 +1,24 @@
+#!/bin/bash
+# Enable the user systemd ssh-agent.socket so $SSH_AUTH_SOCK
+# (exported from fish config) socket-activates the agent on demand.
+
+set -e
+
+if ! command -v systemctl >/dev/null 2>&1; then
+    echo "systemctl not available, skipping ssh-agent.socket setup"
+    exit 0
+fi
+
+if ! systemctl --user list-unit-files ssh-agent.socket >/dev/null 2>&1; then
+    echo "ssh-agent.socket user unit not present, skipping"
+    exit 0
+fi
+
+if systemctl --user is-enabled ssh-agent.socket >/dev/null 2>&1 \
+   && systemctl --user is-active ssh-agent.socket >/dev/null 2>&1; then
+    echo "ssh-agent.socket already enabled and active"
+    exit 0
+fi
+
+echo "Enabling ssh-agent.socket user unit..."
+systemctl --user enable --now ssh-agent.socket
