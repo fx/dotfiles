@@ -1,16 +1,22 @@
 #!/bin/bash
 # Managed by github.com/fx/dotfiles
-# Import photos/videos from a PTP/MTP camera to ~/Pictures/Photos organized by date
+# Import photos/videos from a camera/phone to ~/Pictures/Photos organized by date
 #
 # Usage: camera-import [--dry-run]
 #
-# Detects the camera via gphoto2, downloads all media files to:
-#   ~/Pictures/Photos/YYYY/YYYY-MM-DD/
+# Fast path: mounts MTP devices (Android phones, MTP cameras) as a filesystem
+# via jmtpfs, then copies only files missing from the destination. Existing
+# files are skipped with an instant local stat instead of being re-read over
+# USB, so a mostly-synced library imports in seconds of enumeration plus the
+# transfer time of genuinely new files.
 #
-# Uses the camera's file timestamps for date organization.
-# Skips files that already exist at the destination.
+# Fallback: PTP-only cameras (e.g. a Sony in "PC Remote" mode) that jmtpfs
+# can't mount are handled with gphoto2.
 #
-# Requires: gphoto2
+# Files are organized by their capture timestamp into:
+#   ~/Pictures/Photos/YYYY/YYYY-MM-DD/<original filename>
+#
+# Requires: jmtpfs (fast path) and/or gphoto2 (fallback)
 
 set -euo pipefail
 
@@ -29,113 +35,190 @@ for arg in "$@"; do
     esac
 done
 
-if ! command -v gphoto2 &>/dev/null; then
-    echo "Error: gphoto2 not found. Install it first." >&2
-    exit 1
-fi
-
-# Detect camera
-camera=$(gphoto2 --auto-detect 2>/dev/null | tail -n +3 | head -1)
-if [[ -z "$camera" ]]; then
-    echo "Error: No camera detected. Is it connected and powered on?" >&2
-    exit 1
-fi
-
-camera_name=$(echo "$camera" | sed 's/  *usb:.*//')
-echo "Detected: $camera_name"
-
-# Find import roots. Real cameras typically have /DCIM; Android MTP exposes
-# storages at /store_xxxxxxxx/DCIM and the root contains unrelated app data
-# that we don't want to traverse (it's slow and trips errors mid-recurse).
-# Sony MTP cameras (e.g., ZV-E10M2) skip DCIM entirely and put date folders
-# like /store_xxxxxxxx/YYYY-MM-DD/ directly under the storage.
-# Strategy: probe /DCIM first, then per-storage /DCIM; if nothing matches,
-# fall back to each storage root (only safe for camera-style storages with
-# no app data — Android always has DCIM so it never hits this branch).
-import_roots=()
-
-# Lists immediate child folders of a given path. gphoto2 --list-folders is
-# recursive, so we read only until the first sub-folder breadcrumb.
-list_children() {
-    local parent="$1"
-    gphoto2 --list-folders --folder "$parent" 2>/dev/null | awk -v parent="$parent" '
-        /^There (is|are) [0-9]+ folder/ {
-            if (seen) exit
-            match($0, /'"'"'[^'"'"']+'"'"'/)
-            current = substr($0, RSTART+1, RLENGTH-2)
-            if (current == parent) { seen = 1; next }
-            exit
-        }
-        seen && /^ - / { sub(/^ - /, ""); print }
-    '
+# Mount point for the jmtpfs fast path. Kept at script scope (not a function
+# local) so the EXIT trap can still reach it under `set -u` when it fires
+# after the function has returned.
+MNT=""
+cleanup_mount() {
+    [[ -n "${MNT:-}" ]] || return 0
+    fusermount -u "$MNT" 2>/dev/null || true
+    rmdir "$MNT" 2>/dev/null || true
+    MNT=""
 }
 
-probe() {
-    local folder="$1"
-    if gphoto2 --list-files --folder "$folder" >/dev/null 2>&1; then
-        import_roots+=("$folder")
+# ---------------------------------------------------------------------------
+# Fast path: jmtpfs (FUSE MTP mount + local skip-existing)
+# ---------------------------------------------------------------------------
+import_via_jmtpfs() {
+    command -v jmtpfs &>/dev/null || return 1
+
+    MNT=$(mktemp -d "${TMPDIR:-/tmp}/camera-import.XXXXXX")
+    # Mount; jmtpfs prints nothing on success. Failure means no MTP device
+    # (or it's PTP-only) — clean up and let the caller fall back to gphoto2.
+    if ! jmtpfs "$MNT" >/dev/null 2>&1; then
+        rmdir "$MNT" 2>/dev/null || true
+        MNT=""
+        return 1
     fi
+    # Ensure we always unmount, even on error/interrupt.
+    trap cleanup_mount EXIT
+
+    # Discover import roots. Android/MTP cameras expose one or more storages as
+    # top-level dirs; real photos live under <storage>/DCIM. Sony MTP cameras
+    # skip DCIM and put date folders directly under the storage, so if no DCIM
+    # exists anywhere we fall back to the storage roots themselves.
+    local roots=() storage
+    shopt -s nullglob
+    for storage in "$MNT"/*/; do
+        [[ -d "${storage%/}/DCIM" ]] && roots+=("${storage%/}/DCIM")
+    done
+    if [[ ${#roots[@]} -eq 0 ]]; then
+        for storage in "$MNT"/*/; do
+            roots+=("${storage%/}")
+        done
+    fi
+    shopt -u nullglob
+
+    if [[ ${#roots[@]} -eq 0 ]]; then
+        echo "No storage found on device." >&2
+        cleanup_mount
+        trap - EXIT
+        return 1
+    fi
+
+    echo "Import roots:"
+    printf '  %s\n' "${roots[@]#$MNT/}"
+    mkdir -p "$DEST"
+
+    local copied=0 skipped=0 failed=0
+    local f m day base target
+    while IFS= read -r -d '' f; do
+        m=$(stat -c '%Y' "$f" 2>/dev/null) || { failed=$((failed+1)); continue; }
+        day=$(date -d "@$m" +%Y/%Y-%m-%d)
+        base=$(basename "$f")
+        target="$DEST/$day/$base"
+        if [[ -e "$target" ]]; then
+            skipped=$((skipped+1))
+            continue
+        fi
+        if $DRY_RUN; then
+            copied=$((copied+1))
+            echo "  NEW: $day/$base"
+            continue
+        fi
+        mkdir -p "$DEST/$day"
+        if cp --preserve=timestamps "$f" "$target" 2>/dev/null; then
+            copied=$((copied+1))
+            echo "  + $day/$base"
+        else
+            rm -f "$target" 2>/dev/null || true   # drop any partial copy
+            failed=$((failed+1))
+            echo "  FAILED: $base" >&2
+        fi
+    done < <(find "${roots[@]}" -type f -print0 2>/dev/null)
+
+    echo ""
+    if $DRY_RUN; then
+        echo "Dry run: $copied new, $skipped already present, $failed unreadable."
+        echo "Would organize into $DEST/YYYY/YYYY-MM-DD/"
+    else
+        echo "Import complete: $copied imported, $skipped skipped, $failed failed."
+    fi
+    return 0
 }
 
-probe "/DCIM"
+# ---------------------------------------------------------------------------
+# Fallback: gphoto2 (PTP cameras jmtpfs can't mount)
+# ---------------------------------------------------------------------------
+import_via_gphoto2() {
+    command -v gphoto2 &>/dev/null || return 1
 
-storages=()
-if [[ ${#import_roots[@]} -eq 0 ]]; then
-    mapfile -t storages < <(list_children /)
-    for storage in "${storages[@]}"; do
-        [[ -z "$storage" ]] && continue
-        probe "/$storage/DCIM"
-    done
-fi
+    local camera camera_name
+    camera=$(gphoto2 --auto-detect 2>/dev/null | tail -n +3 | head -1)
+    [[ -z "$camera" ]] && return 1
 
-# Sony MTP fallback: no DCIM anywhere, so use storage roots directly.
-if [[ ${#import_roots[@]} -eq 0 ]]; then
-    for storage in "${storages[@]}"; do
-        [[ -z "$storage" ]] && continue
-        probe "/$storage"
-    done
-fi
+    camera_name=$(echo "$camera" | sed 's/  *usb:.*//')
+    echo "Detected: $camera_name"
 
-if [[ ${#import_roots[@]} -eq 0 ]]; then
-    echo "No photos found on device. Is this a camera/phone with photos?" >&2
-    exit 1
-fi
+    local import_roots=() storages=()
 
-echo "Import roots: ${import_roots[*]}"
+    list_children() {
+        local parent="$1"
+        gphoto2 --list-folders --folder "$parent" 2>/dev/null | awk -v parent="$parent" '
+            /^There (is|are) [0-9]+ folder/ {
+                if (seen) exit
+                match($0, /'"'"'[^'"'"']+'"'"'/)
+                current = substr($0, RSTART+1, RLENGTH-2)
+                if (current == parent) { seen = 1; next }
+                exit
+            }
+            seen && /^ - / { sub(/^ - /, ""); print }
+        '
+    }
+    probe() {
+        gphoto2 --list-files --folder "$1" >/dev/null 2>&1 && import_roots+=("$1")
+    }
 
-if $DRY_RUN; then
-    echo ""
-    for folder in "${import_roots[@]}"; do
-        echo "Files under $folder:"
-        gphoto2 --list-files -R --folder "$folder" 2>/dev/null | grep "^#" | while read -r line; do
-            fname=$(echo "$line" | awk '{print $2}')
-            size=$(echo "$line" | awk '{print $4}')
-            echo "  $fname (${size} KB)"
+    probe "/DCIM"
+    if [[ ${#import_roots[@]} -eq 0 ]]; then
+        mapfile -t storages < <(list_children /)
+        for storage in "${storages[@]}"; do
+            [[ -z "$storage" ]] && continue
+            probe "/$storage/DCIM"
         done
+    fi
+    if [[ ${#import_roots[@]} -eq 0 ]]; then
+        for storage in "${storages[@]}"; do
+            [[ -z "$storage" ]] && continue
+            probe "/$storage"
+        done
+    fi
+    [[ ${#import_roots[@]} -eq 0 ]] && return 1
+
+    echo "Import roots: ${import_roots[*]}"
+
+    if $DRY_RUN; then
+        echo ""
+        for folder in "${import_roots[@]}"; do
+            echo "Files under $folder:"
+            gphoto2 --list-files -R --folder "$folder" 2>/dev/null | grep "^#" | while read -r line; do
+                echo "  $(echo "$line" | awk '{print $2}') ($(echo "$line" | awk '{print $4}') KB)"
+            done
+        done
+        echo ""
+        echo "Would be organized into $DEST/YYYY/YYYY-MM-DD/"
+        return 0
+    fi
+
+    mkdir -p "$DEST"
+    echo "Downloading and organizing by date..."
+    local log
+    log=$(mktemp)
+    trap 'rm -f "$log"' EXIT
+    for folder in "${import_roots[@]}"; do
+        echo "Importing from $folder..."
+        stdbuf -oL gphoto2 --get-all-files -R --folder "$folder" --skip-existing \
+            --filename "$DEST/%Y/%Y-%m-%d/%f.%C" 2>&1 \
+            | stdbuf -oL grep -E "^(Saving|Skipping) " \
+            | tee -a "$log" \
+            | sed 's/^/  /' || true
     done
+    local imported skipped
+    imported=$(grep -c "^Saving " "$log" || true)
+    skipped=$(grep -c "^Skipping " "$log" || true)
     echo ""
-    echo "Would be organized into $DEST/YYYY/YYYY-MM-DD/"
+    echo "Import complete: $imported imported, $skipped skipped."
+    return 0
+}
+
+echo "Looking for a connected camera or phone..."
+if import_via_jmtpfs; then
+    exit 0
+fi
+if import_via_gphoto2; then
     exit 0
 fi
 
-# Download directly to organized directories using camera file timestamps
-mkdir -p "$DEST"
-echo "Downloading and organizing by date..."
-
-output=""
-for folder in "${import_roots[@]}"; do
-    echo "Importing from $folder..."
-    folder_output=$(gphoto2 --get-all-files -R --folder "$folder" --skip-existing \
-        --filename "$DEST/%Y/%Y-%m-%d/%f.%C" 2>&1)
-    output+="$folder_output"$'\n'
-done
-
-imported=$(echo "$output" | grep -c "^Saving " || true)
-skipped=$(echo "$output" | grep -c "^Skipping " || true)
-
-echo "$output" | grep -E "^(Saving|Skipping) " | while read -r line; do
-    echo "  $line"
-done
-
-echo ""
-echo "Import complete: $imported imported, $skipped skipped."
+echo "Error: No camera/phone found. Connect it, unlock it, and set USB mode to" >&2
+echo "file transfer (MTP). Requires jmtpfs or gphoto2." >&2
+exit 1

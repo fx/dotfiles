@@ -49,6 +49,7 @@ arch:
     # Camera/photo tools
     - perl-image-exiftool
     - gphoto2
+    - jmtpfs  # AUR: FUSE MTP mount for fast phone/camera imports (camera-import)
     # GStreamer for video thumbnails/preview in gthumb
     - gstreamer
     - gst-plugins-base
