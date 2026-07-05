@@ -41,6 +41,29 @@ if ! systemctl is-enabled greetd >/dev/null 2>&1; then
     sudo systemctl enable greetd
 fi
 
+# Hook gnome-keyring into greetd's PAM stack so the login keyring is created
+# and unlocked automatically at login (otherwise apps like Chrome prompt for a
+# keyring password on every login). Idempotent: only patches if absent.
+PAM_FILE=/etc/pam.d/greetd
+if [ -f "$PAM_FILE" ] && ! grep -q pam_gnome_keyring "$PAM_FILE"; then
+    echo "Adding pam_gnome_keyring hooks to $PAM_FILE..."
+    sudo cp -a "$PAM_FILE" "$PAM_FILE.bak.$(date +%Y%m%d-%H%M%S)"
+    if grep -q '^auth.*include.*system-local-login' "$PAM_FILE" \
+       && grep -q '^session.*include.*system-local-login' "$PAM_FILE"; then
+        # Insert after the matching include lines ('-' prefix + optional = login is never blocked)
+        sudo sed -i \
+            -e '/^auth[[:space:]]\+include[[:space:]]\+system-local-login/a -auth      optional     pam_gnome_keyring.so' \
+            -e '/^session[[:space:]]\+include[[:space:]]\+system-local-login/a -session   optional     pam_gnome_keyring.so auto_start' \
+            "$PAM_FILE"
+    else
+        # Fallback: append (PAM groups by type, so order within each group is preserved)
+        printf '%s\n' \
+            '-auth      optional     pam_gnome_keyring.so' \
+            '-session   optional     pam_gnome_keyring.so auto_start' | sudo tee -a "$PAM_FILE" > /dev/null
+    fi
+    echo "pam_gnome_keyring hooks added (effective on next login)."
+fi
+
 echo "greetd configured. Changes take effect on next boot."
 echo "To switch now: sudo systemctl stop sddm && sudo systemctl start greetd"
 

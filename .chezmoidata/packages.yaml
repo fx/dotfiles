@@ -28,6 +28,7 @@ arch:
     # Login manager
     - greetd
     - greetd-tuigreet
+    - gnome-keyring  # secret store; PAM-unlocked at greetd login (see setup-greetd.sh.tmpl)
     # Fonts
     - ttf-hack-nerd
     - terminus-font  # HiDPI console fonts for greetd
