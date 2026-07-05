@@ -78,6 +78,8 @@ arch:
       - nvidia-utils
       - lib32-nvidia-utils
       - egl-wayland
+      - libva-nvidia-driver
+      - libva-utils
       - docker
       - docker-compose
       - nvidia-container-toolkit

@@ -59,7 +59,9 @@ env = QT_QPA_PLATFORMTHEME,qt5ct
 {{ if output "sh" "-c" "lspci 2>/dev/null | grep -qi nvidia && echo nvidia || echo other" | trim | eq "nvidia" -}}
 env = LIBVA_DRIVER_NAME,nvidia
 env = __GLX_VENDOR_LIBRARY_NAME,nvidia
-env = NVD_BACKEND,direct
+# egl backend: the newer `direct` backend crashes Chrome's GPU process during
+# VA-API video decode (browser "freaks out" on videos). egl is slower but stable.
+env = NVD_BACKEND,egl
 # Hide the AMD iGPU's Vulkan ICD so apps don't default to it.
 # Zen 5 desktop CPUs (e.g. 9850X3D) ship a 2-CU RDNA2 iGPU that the Vulkan
 # loader enumerates as device 0 — Chrome/games render on it instead of the

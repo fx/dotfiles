@@ -163,8 +163,24 @@ Set in `hyprland.conf.tmpl`:
 ```
 env = LIBVA_DRIVER_NAME,nvidia
 env = __GLX_VENDOR_LIBRARY_NAME,nvidia
-env = NVD_BACKEND,direct
+env = NVD_BACKEND,egl
 ```
+
+### Chrome GPU process crashes during video playback ("freaks out" on videos)
+
+**Symptoms:** Chrome doesn't hard-crash, but playing video makes it glitch/flicker, tabs flash black, and playback freezes then recovers. Crash dumps accumulate in `~/.config/google-chrome/Crash Reports/` with the GPU process dying inside `VaapiVideoDecoder`.
+
+**Cause:** Chrome's hardware video decode goes through `libva-nvidia-driver` (the NVDEC VA-API shim). Its newer `direct` backend (`NVD_BACKEND=direct`) is fast but crashes Chromium's GPU process on certain streams. When the GPU process dies, Chrome restarts it — hence the "freak out."
+
+**Diagnose:**
+```bash
+ls -t ~/.config/google-chrome/Crash\ Reports/completed/*.dmp | head
+strings <newest>.dmp | grep -iE "gpu-process|VaapiVideoDecoder"   # confirms GPU-process VA-API crash
+```
+
+**Don't** just disable HW decode (`chrome://flags` → "Hardware-accelerated video decode" → Disabled): it stops the crashes but forces CPU software decode, which lags badly at 4K/high-refresh.
+
+**Fix:** Switch the NVDEC VA-API driver to its `egl` backend (slower than `direct` but stable in Chrome): set `env = NVD_BACKEND,egl` in `hyprland.conf.tmpl`, `./install.sh`, then re-login. Keep Chrome's HW decode **enabled**. Verify the backend with `vainfo` (should read `[egl backend]`).
 
 ### WirePlumber NVIDIA Audio
 
