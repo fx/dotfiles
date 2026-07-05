@@ -1,0 +1,100 @@
+#!/bin/bash
+# Enable NVIDIA early KMS (load the driver from the initramfs)
+# Only runs on desktop profile, and only when an NVIDIA GPU is present.
+#
+# Why: without the nvidia modules in the initramfs, nvidia-drm registers late
+# during userspace startup. On the open kernel module, display detection runs
+# through GSP firmware and isn't ready at registration time, so the driver logs
+# "Failed to get dynamic displays during device registration" and probes
+# connectors asynchronously afterwards. The result is a multi-second window
+# where only the UEFI-console display is lit and secondary monitors are dark.
+# Loading nvidia in early KMS moves init into the initramfs so all displays
+# come up together, before Hyprland starts.
+
+{{ if .is_desktop -}}
+set -e
+
+# Only mkinitcpio-based systems (skip dracut/other initramfs generators).
+if [[ ! -f /etc/mkinitcpio.conf ]]; then
+    echo "No /etc/mkinitcpio.conf, skipping NVIDIA early KMS setup"
+    exit 0
+fi
+
+# Only when an NVIDIA GPU is actually present.
+if ! lspci 2>/dev/null | grep -qi nvidia; then
+    echo "No NVIDIA GPU detected, skipping early KMS setup"
+    exit 0
+fi
+
+if ! command -v mkinitcpio >/dev/null 2>&1; then
+    echo "mkinitcpio not installed yet, skipping early KMS setup"
+    exit 0
+fi
+
+CONF=/etc/mkinitcpio.conf
+changed=0
+
+# --- 1. Ensure the nvidia modules are in MODULES=(...) -------------------------
+# Append any missing ones, preserving existing entries (e.g. amdgpu) and order.
+# grep -w distinguishes "nvidia" from "nvidia_modeset" (underscore is a word char).
+mods="$(grep -oP '^MODULES=\(\K[^)]*' "$CONF" || true)"
+newmods="$mods"
+for m in nvidia nvidia_modeset nvidia_uvm nvidia_drm; do
+    if ! grep -qw "$m" <<< " $newmods "; then
+        newmods="$(sed -E 's/[[:space:]]+$//' <<< "$newmods") $m"
+        changed=1
+    fi
+done
+newmods="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' <<< "$newmods")"
+
+if [[ "$changed" -eq 1 ]]; then
+    echo "Adding NVIDIA modules to early KMS (MODULES) in $CONF..."
+    sudo cp -a "$CONF" "$CONF.bak.$(date +%Y%m%d-%H%M%S)"
+    sudo sed -i "s|^MODULES=(.*)|MODULES=($newmods)|" "$CONF"
+fi
+
+# --- 2. Regenerate the initramfs when the driver is updated --------------------
+# The stock mkinitcpio install hook only fires on a vmlinuz change, so an
+# nvidia-only package bump would leave a stale module in the initramfs. This
+# hook keeps it in sync (covers Arch nvidia* packages and CachyOS prebuilt
+# linux-*-nvidia-open kmods).
+HOOK=/etc/pacman.d/hooks/nvidia-early-kms.hook
+read -r -d '' HOOK_CONTENT <<'EOF' || true
+[Trigger]
+Operation=Install
+Operation=Upgrade
+Operation=Remove
+Type=Package
+Target=nvidia
+Target=nvidia-open
+Target=nvidia-dkms
+Target=nvidia-open-dkms
+Target=nvidia-utils
+Target=linux*-nvidia
+Target=linux*-nvidia-open
+
+[Action]
+Description=Regenerating initramfs for NVIDIA early KMS...
+Depends=mkinitcpio
+When=PostTransaction
+Exec=/usr/bin/mkinitcpio -P
+EOF
+
+if [[ ! -f "$HOOK" ]] || ! diff -q <(printf '%s\n' "$HOOK_CONTENT") "$HOOK" >/dev/null 2>&1; then
+    echo "Installing pacman hook to regenerate initramfs on NVIDIA updates..."
+    sudo install -d /etc/pacman.d/hooks
+    printf '%s\n' "$HOOK_CONTENT" | sudo tee "$HOOK" > /dev/null
+fi
+
+# --- 3. Rebuild the initramfs now if we changed MODULES ------------------------
+if [[ "$changed" -eq 1 ]]; then
+    echo "Regenerating initramfs (this may take a moment)..."
+    sudo mkinitcpio -P
+    echo "NVIDIA early KMS enabled. Effective on next boot."
+else
+    echo "NVIDIA early KMS already configured."
+fi
+
+{{ else -}}
+# Not desktop profile, skip
+{{ end -}}
