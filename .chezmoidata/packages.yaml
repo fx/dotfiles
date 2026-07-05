@@ -54,6 +54,7 @@ arch:
     - perl-image-exiftool
     - gphoto2
     - jmtpfs  # AUR: FUSE MTP mount for fast phone/camera imports (camera-import)
+    - udisks2  # mount camera SD cards (Mass Storage mode) for camera-import
     # GStreamer for video thumbnails/preview in gthumb
     - gstreamer
     - gst-plugins-base

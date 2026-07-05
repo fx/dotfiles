@@ -4,19 +4,23 @@
 #
 # Usage: camera-import [--dry-run]
 #
-# Fast path: mounts MTP devices (Android phones, MTP cameras) as a filesystem
-# via jmtpfs, then copies only files missing from the destination. Existing
-# files are skipped with an instant local stat instead of being re-read over
-# USB, so a mostly-synced library imports in seconds of enumeration plus the
-# transfer time of genuinely new files.
+# It picks the fastest available transport, copying only files missing from the
+# destination — existing ones are skipped with an instant local stat rather than
+# re-read over USB, so a mostly-synced library imports in seconds plus the
+# transfer time of genuinely new files:
 #
-# Fallback: PTP-only cameras (e.g. a Sony in "PC Remote" mode) that jmtpfs
-# can't mount are handled with gphoto2.
+#   1. Mass Storage (MSC): a camera in Mass Storage mode, or an SD card in a
+#      reader, exposes its real filesystem — full card speed, no MTP overhead.
+#      This is by far the fastest; prefer it for cameras that offer it (Sony).
+#   2. jmtpfs: MTP devices (Android phones, MTP cameras) as a FUSE filesystem.
+#      libmtp doesn't recognize some bodies (many Sony), which then fall to (3).
+#   3. gphoto2: PTP/MTP cameras jmtpfs can't mount. Slowest (per-file round
+#      trips) but broadest; streams per-folder progress so it never looks hung.
 #
 # Files are organized by their capture timestamp into:
 #   ~/Pictures/Photos/YYYY/YYYY-MM-DD/<original filename>
 #
-# Requires: jmtpfs (fast path) and/or gphoto2 (fallback)
+# Requires: udisks2 (MSC), jmtpfs (MTP), and/or gphoto2 (PTP) — any one works.
 
 set -euo pipefail
 
@@ -35,6 +39,92 @@ for arg in "$@"; do
     esac
 done
 
+# Copy every file under the given root dir(s) into $DEST, organized by each
+# file's mtime (YYYY/YYYY-MM-DD), skipping any that already exist with an
+# instant local stat. Shared by the MSC and jmtpfs fast paths — both hand it a
+# real (or FUSE) filesystem, so skip-existing costs a local stat, not a device
+# round-trip. Streams each copied/skipped file and prints the summary.
+copy_tree() {
+    local roots=("$@")
+    mkdir -p "$DEST"
+    local copied=0 skipped=0 failed=0 f m day base target
+    while IFS= read -r -d '' f; do
+        m=$(stat -c '%Y' "$f" 2>/dev/null) || { failed=$((failed+1)); continue; }
+        day=$(date -d "@$m" +%Y/%Y-%m-%d)
+        base=$(basename "$f")
+        target="$DEST/$day/$base"
+        if [[ -e "$target" ]]; then
+            skipped=$((skipped+1))
+            continue
+        fi
+        if $DRY_RUN; then
+            copied=$((copied+1))
+            echo "  NEW: $day/$base"
+            continue
+        fi
+        mkdir -p "$DEST/$day"
+        if cp --preserve=timestamps "$f" "$target" 2>/dev/null; then
+            copied=$((copied+1))
+            echo "  + $day/$base"
+        else
+            rm -f "$target" 2>/dev/null || true   # drop any partial copy
+            failed=$((failed+1))
+            echo "  FAILED: $base" >&2
+        fi
+    done < <(find "${roots[@]}" -type f -print0 2>/dev/null)
+
+    echo ""
+    if $DRY_RUN; then
+        echo "Dry run: $copied new, $skipped already present, $failed unreadable."
+        echo "Would organize into $DEST/YYYY/YYYY-MM-DD/"
+    else
+        echo "Import complete: $copied imported, $skipped skipped, $failed failed."
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Fastest path: USB Mass Storage (MSC) — the camera's SD card as a block device
+# ---------------------------------------------------------------------------
+# A camera in Mass Storage mode (or an SD card in a reader) exposes its real
+# filesystem, so enumeration and skip-existing run at full card speed instead of
+# MTP's per-file round-trips (seconds vs. minutes on slow bodies like Sony).
+MSC_MOUNTED=""   # device WE mounted (for cleanup); empty if it was already mounted
+cleanup_msc() {
+    [[ -n "${MSC_MOUNTED:-}" ]] || return 0
+    udisksctl unmount -b "$MSC_MOUNTED" >/dev/null 2>&1 || true
+    MSC_MOUNTED=""
+}
+import_via_msc() {
+    command -v lsblk >/dev/null 2>&1 || return 1
+
+    # Only look at removable (RM=1) block partitions, so we never stat unrelated
+    # network/system mounts (a DCIM lookup on an NFS share costs a round-trip).
+    # An already-mounted card is used in place; an unmounted one is mounted via
+    # udisks (no root), checked for a DCIM dir, and unmounted again if it isn't
+    # a camera. FSTYPE/MOUNTPOINT are last so unmounted rows still parse.
+    local dcim="" dev type rm fstype mnt out m
+    while read -r dev type rm fstype mnt; do
+        [[ "$type" == "part" && "$rm" == "1" ]] || continue
+        if [[ -n "$mnt" ]]; then
+            [[ -d "$mnt/DCIM" ]] && { dcim="$mnt/DCIM"; break; }
+        elif [[ -n "$fstype" ]] && command -v udisksctl >/dev/null 2>&1; then
+            out=$(udisksctl mount -b "$dev" 2>/dev/null) || continue
+            m="${out##* at }"; m="${m%.}"
+            if [[ -d "$m/DCIM" ]]; then
+                dcim="$m/DCIM"; MSC_MOUNTED="$dev"; break
+            fi
+            udisksctl unmount -b "$dev" >/dev/null 2>&1 || true
+        fi
+    done < <(lsblk -rpno NAME,TYPE,RM,FSTYPE,MOUNTPOINT 2>/dev/null)
+
+    [[ -n "$dcim" ]] || return 1
+    trap cleanup_msc EXIT
+
+    echo "Camera SD card (mass storage) at ${dcim%/DCIM}"
+    copy_tree "$dcim"
+    return 0
+}
+
 # Mount point for the jmtpfs fast path. Kept at script scope (not a function
 # local) so the EXIT trap can still reach it under `set -u` when it fires
 # after the function has returned.
@@ -47,14 +137,15 @@ cleanup_mount() {
 }
 
 # ---------------------------------------------------------------------------
-# Fast path: jmtpfs (FUSE MTP mount + local skip-existing)
+# Fast path: jmtpfs (FUSE MTP mount + local skip-existing) — MTP phones/cameras
 # ---------------------------------------------------------------------------
 import_via_jmtpfs() {
     command -v jmtpfs &>/dev/null || return 1
 
     MNT=$(mktemp -d "${TMPDIR:-/tmp}/camera-import.XXXXXX")
     # Mount; jmtpfs prints nothing on success. Failure means no MTP device
-    # (or it's PTP-only) — clean up and let the caller fall back to gphoto2.
+    # (or libmtp doesn't recognize it, e.g. many Sony bodies) — clean up and
+    # let the caller fall back to gphoto2.
     if ! jmtpfs "$MNT" >/dev/null 2>&1; then
         rmdir "$MNT" 2>/dev/null || true
         MNT=""
@@ -88,42 +179,7 @@ import_via_jmtpfs() {
 
     echo "Import roots:"
     printf '  %s\n' "${roots[@]#$MNT/}"
-    mkdir -p "$DEST"
-
-    local copied=0 skipped=0 failed=0
-    local f m day base target
-    while IFS= read -r -d '' f; do
-        m=$(stat -c '%Y' "$f" 2>/dev/null) || { failed=$((failed+1)); continue; }
-        day=$(date -d "@$m" +%Y/%Y-%m-%d)
-        base=$(basename "$f")
-        target="$DEST/$day/$base"
-        if [[ -e "$target" ]]; then
-            skipped=$((skipped+1))
-            continue
-        fi
-        if $DRY_RUN; then
-            copied=$((copied+1))
-            echo "  NEW: $day/$base"
-            continue
-        fi
-        mkdir -p "$DEST/$day"
-        if cp --preserve=timestamps "$f" "$target" 2>/dev/null; then
-            copied=$((copied+1))
-            echo "  + $day/$base"
-        else
-            rm -f "$target" 2>/dev/null || true   # drop any partial copy
-            failed=$((failed+1))
-            echo "  FAILED: $base" >&2
-        fi
-    done < <(find "${roots[@]}" -type f -print0 2>/dev/null)
-
-    echo ""
-    if $DRY_RUN; then
-        echo "Dry run: $copied new, $skipped already present, $failed unreadable."
-        echo "Would organize into $DEST/YYYY/YYYY-MM-DD/"
-    else
-        echo "Import complete: $copied imported, $skipped skipped, $failed failed."
-    fi
+    copy_tree "${roots[@]}"
     return 0
 }
 
@@ -191,17 +247,39 @@ import_via_gphoto2() {
     fi
 
     mkdir -p "$DEST"
-    echo "Downloading and organizing by date..."
+    echo "Using the gphoto2 path (slower MTP transfer, and this camera isn't"
+    echo "mountable via jmtpfs). Some bodies — notably Sony — take ~20s per"
+    echo "folder just to list files, so expect a pause before each folder's"
+    echo "transfers begin. For a large backlog, a card reader is far faster."
     local log
     log=$(mktemp)
     trap 'rm -f "$log"' EXIT
-    for folder in "${import_roots[@]}"; do
-        echo "Importing from $folder..."
-        stdbuf -oL gphoto2 --get-all-files -R --folder "$folder" --skip-existing \
+
+    # Scan one folder, streaming each Saving/Skipping line live so the slow
+    # gphoto2 path never looks hung. $2 is "" (this folder only) or "-R"
+    # (recurse into its subfolders).
+    scan_folder() {
+        local folder="$1" recurse="$2"
+        echo "Scanning $folder ..."
+        # shellcheck disable=SC2086
+        stdbuf -oL gphoto2 --get-all-files $recurse --folder "$folder" --skip-existing \
             --filename "$DEST/%Y/%Y-%m-%d/%f.%C" 2>&1 \
             | stdbuf -oL grep -E "^(Saving|Skipping) " \
             | tee -a "$log" \
             | sed 's/^/  /' || true
+    }
+
+    # Break each root into per-folder passes for visible progress: the root
+    # itself non-recursively (any loose files) then each immediate subfolder
+    # recursively (Sony's date folders, or DCIM/<subdir> on cameras that nest).
+    local root child children=()
+    for root in "${import_roots[@]}"; do
+        scan_folder "$root" ""
+        mapfile -t children < <(list_children "$root")
+        for child in "${children[@]}"; do
+            [[ -z "$child" ]] && continue
+            scan_folder "$root/$child" "-R"
+        done
     done
     local imported skipped
     imported=$(grep -c "^Saving " "$log" || true)
@@ -212,6 +290,10 @@ import_via_gphoto2() {
 }
 
 echo "Looking for a connected camera or phone..."
+# Fastest first: SD card as mass storage, then MTP via jmtpfs, then PTP gphoto2.
+if import_via_msc; then
+    exit 0
+fi
 if import_via_jmtpfs; then
     exit 0
 fi
@@ -219,6 +301,8 @@ if import_via_gphoto2; then
     exit 0
 fi
 
-echo "Error: No camera/phone found. Connect it, unlock it, and set USB mode to" >&2
-echo "file transfer (MTP). Requires jmtpfs or gphoto2." >&2
+echo "Error: No camera/phone/card found. Connect the device and either:" >&2
+echo "  - set the camera's USB mode to Mass Storage (fastest), or" >&2
+echo "  - unlock the phone and set USB mode to file transfer (MTP)." >&2
+echo "Requires udisks2 (mass storage), jmtpfs (MTP), or gphoto2 (PTP)." >&2
 exit 1
