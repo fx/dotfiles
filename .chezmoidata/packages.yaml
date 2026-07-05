@@ -47,6 +47,9 @@ arch:
     - gthumb
     - vlc
     - mpv
+    # Streaming/recording
+    - obs-studio
+    - obs-freeze-filter  # AUR: freeze-frame filter (github.com/exeldro/obs-freeze-filter)
     # Camera/photo tools
     - perl-image-exiftool
     - gphoto2
