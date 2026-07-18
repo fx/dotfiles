@@ -102,26 +102,39 @@ import_via_msc() {
     # An already-mounted card is used in place; an unmounted one is mounted via
     # udisks (no root), checked for a DCIM dir, and unmounted again if it isn't
     # a camera. FSTYPE/MOUNTPOINT are last so unmounted rows still parse.
-    local dcim="" dev type rm fstype mnt out m
+    # DCIM marks a camera card, but it only holds stills — enumerate on DCIM,
+    # then import from the card root. Sony writes XAVC S/HS video to
+    # PRIVATE/M4ROOT/CLIP and AVCHD to PRIVATE/AVCHD/BDMV/STREAM, neither under
+    # DCIM, so a DCIM-only sweep silently drops every video. Track the card root.
+    local card="" dev type rm fstype mnt out m
     while read -r dev type rm fstype mnt; do
         [[ "$type" == "part" && "$rm" == "1" ]] || continue
         if [[ -n "$mnt" ]]; then
-            [[ -d "$mnt/DCIM" ]] && { dcim="$mnt/DCIM"; break; }
+            [[ -d "$mnt/DCIM" ]] && { card="$mnt"; break; }
         elif [[ -n "$fstype" ]] && command -v udisksctl >/dev/null 2>&1; then
             out=$(udisksctl mount -b "$dev" 2>/dev/null) || continue
             m="${out##* at }"; m="${m%.}"
             if [[ -d "$m/DCIM" ]]; then
-                dcim="$m/DCIM"; MSC_MOUNTED="$dev"; break
+                card="$m"; MSC_MOUNTED="$dev"; break
             fi
             udisksctl unmount -b "$dev" >/dev/null 2>&1 || true
         fi
     done < <(lsblk -rpno NAME,TYPE,RM,FSTYPE,MOUNTPOINT 2>/dev/null)
 
-    [[ -n "$dcim" ]] || return 1
+    [[ -n "$card" ]] || return 1
     trap cleanup_msc EXIT
 
-    echo "Camera SD card (mass storage) at ${dcim%/DCIM}"
-    copy_tree "$dcim"
+    # Stills (DCIM) plus the out-of-DCIM movie trees. copy_tree organizes by
+    # mtime and skips existing files, so listing a root a given card doesn't use
+    # is harmless. XAVC clips carry a small .XML sidecar in CLIP; it rides along
+    # into the date folder — cheap, and useful capture metadata to keep.
+    local roots=() d
+    for d in DCIM PRIVATE/M4ROOT/CLIP PRIVATE/AVCHD/BDMV/STREAM MP_ROOT; do
+        [[ -d "$card/$d" ]] && roots+=("$card/$d")
+    done
+
+    echo "Camera SD card (mass storage) at $card"
+    copy_tree "${roots[@]}"
     return 0
 }
 
