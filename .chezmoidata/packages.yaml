@@ -43,6 +43,7 @@ arch:
     # Development
     - coder-bin
     - zed
+    - claude-desktop  # AUR: official Anthropic desktop app (Chat/Cowork/Code); pulls qemu+edk2 VM sandbox for Cowork
     # Media viewers
     - gthumb
     - vlc
