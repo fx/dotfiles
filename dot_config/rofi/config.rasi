@@ -1,0 +1,87 @@
+configuration {
+    modes: "drun,run,window";
+    show-icons: true;
+    icon-theme: "Papirus";
+    terminal: "ghostty";
+    drun-display-format: "{name}";
+    disable-history: false;
+    hide-scrollbar: true;
+    display-drun: "Apps";
+    display-run: "Run";
+    display-window: "Windows";
+    sidebar-mode: true;
+}
+
+@theme "gruvbox-dark"
+
+* {
+    font: "Hack Nerd Font 12";
+}
+
+window {
+    width: 600px;
+    background-color: @bg;
+    border: 2px;
+    border-color: @border;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+mainbox {
+    background-color: transparent;
+    children: [inputbar, listview];
+    spacing: 10px;
+}
+
+inputbar {
+    background-color: @bg-alt;
+    border-radius: 8px;
+    padding: 10px;
+    children: [prompt, entry];
+}
+
+prompt {
+    background-color: transparent;
+    text-color: @accent;
+    padding: 0 10px 0 0;
+}
+
+entry {
+    background-color: transparent;
+    text-color: @fg;
+    placeholder: "Search...";
+    placeholder-color: @fg-alt;
+}
+
+listview {
+    background-color: transparent;
+    columns: 1;
+    lines: 8;
+    spacing: 5px;
+    scrollbar: false;
+}
+
+element {
+    background-color: transparent;
+    padding: 8px;
+    border-radius: 6px;
+}
+
+element selected {
+    background-color: @bg-alt;
+}
+
+element-icon {
+    size: 24px;
+    padding: 0 10px 0 0;
+}
+
+element-text {
+    background-color: transparent;
+    text-color: @fg;
+    vertical-align: 0.5;
+}
+
+element-text selected {
+    text-color: @accent;
+}
