@@ -1,40 +1,24 @@
 #!/bin/bash
-# Install the Codex CLI via mise (npm backend) and ensure its shared-home config
-# dir exists so setup-shared-symlinks can persist interactive login (~/.codex).
+# Install the Codex CLI with OpenAI's standalone installer and ensure its
+# shared-home config dir exists so interactive login (~/.codex) persists.
 # This script runs when its content changes.
+#
+# NOT mise any more. `codex agents` (and anything else that talks to the shared
+# local app-server daemon) hard-refuses a mise/npm/brew-managed binary with
+# "This command requires the standalone install managed by the Codex installer,
+# because the daemon starts and updates app-server from that fixed path."
+# The installer puts the payload under $CODEX_HOME/packages/standalone and
+# symlinks ~/.local/bin/codex at it, which is that fixed path.
 
 {{ if .include_defaults -}}
 set -e
 
-if ! command -v mise >/dev/null 2>&1; then
-    echo "⚠️  mise not found, skipping Codex install"
-    exit 0
-fi
-
-# codex is a mise-managed tool (npm:@openai/codex) with a shim under
-# ~/.local/share/mise/shims; verify with `mise which` (works without mise on PATH).
-codex_installed() { mise which codex >/dev/null 2>&1; }
-
-if codex_installed; then
-    echo "✓ Codex CLI already installed"
-else
-    echo "Installing Codex CLI via mise (npm:@openai/codex)..."
-    # The npm backend needs node; ensure it (this script may run before the
-    # general mise-tools install). node@lts is already in the mise config.
-    mise use -g node@lts >/dev/null 2>&1 || true
-    mise use -g "npm:@openai/codex@latest"
-    if codex_installed; then
-        echo "✓ Codex CLI installed successfully"
-    else
-        echo "⚠️  Codex CLI installation may have failed"
-        exit 1
-    fi
-fi
-
-# In Coder workspaces, persist Codex config + interactive login (~/.codex) to the
-# shared home so it survives workspace rebuilds. Create the symlink here directly
-# rather than relying on setup-shared-symlinks: that script is run_onchange and
-# won't re-run on an unchanged upgrade, so ~/.codex wouldn't be linked.
+# ---------------------------------------------------------------------------
+# ~/.codex FIRST: the installer writes the standalone payload into $CODEX_HOME,
+# so in Coder workspaces the symlink into the shared home has to exist before it
+# runs. Linked here directly rather than in setup-shared-symlinks: that script is
+# run_onchange and won't re-run on an unchanged upgrade, so ~/.codex wouldn't be
+# linked.
 if [ "$CODER" = "true" ]; then
     SHARED_CODEX="${DOTFILES_SHARED_HOME:-/shared/home/default}/.codex"
     mkdir -p "$SHARED_CODEX"
@@ -46,6 +30,62 @@ if [ "$CODER" = "true" ]; then
             rm -rf "$HOME/.codex"
         fi
         ln -sfn "$SHARED_CODEX" "$HOME/.codex"
+    fi
+fi
+
+# CODEX_HOME is pinned to the RESOLVED path, not ~/.codex, because the installer
+# bakes absolute paths into the symlinks it writes ($STANDALONE/current and
+# ~/.local/bin/codex). Resolving first keeps those pointing at
+# /shared/home/<profile>/.codex/... instead of one workspace's $HOME, so pods
+# that run the agent as root and pods that run it as vscode share one payload.
+CODEX_HOME="$HOME/.codex"
+[ -L "$HOME/.codex" ] && CODEX_HOME="$(readlink -f "$HOME/.codex")"
+export CODEX_HOME
+STANDALONE="$CODEX_HOME/packages/standalone"
+
+# ---------------------------------------------------------------------------
+# Drop any mise-managed codex. Leaving it installed is not harmless: mise's shim
+# dir and tool bin dirs are prepended by `mise activate`, so PATH order decides
+# which binary runs and the mise one silently reintroduces the daemon refusal.
+if command -v mise >/dev/null 2>&1; then
+    for tool in "npm:@openai/codex" "codex"; do
+        mise unuse -g "$tool" >/dev/null 2>&1 || true
+    done
+fi
+
+# ---------------------------------------------------------------------------
+export PATH="$HOME/.local/bin:$PATH"
+
+# A fresh Coder pod has an empty ~/.local/bin (ephemeral home) while the ~330MB
+# payload is already sitting in the shared ~/.codex. Relink rather than let the
+# installer re-download it on every workspace start. The -x test follows the
+# symlink, so a payload left dangling by an older install falls through to a
+# full reinstall below.
+if [ ! -e "$HOME/.local/bin/codex" ] && [ -x "$STANDALONE/current/bin/codex" ]; then
+    mkdir -p "$HOME/.local/bin"
+    ln -sfn "$STANDALONE/current/bin/codex" "$HOME/.local/bin/codex"
+    if [ -x "$STANDALONE/current/bin/codex-code-mode-host" ]; then
+        ln -sfn "$STANDALONE/current/bin/codex-code-mode-host" \
+                "$HOME/.local/bin/codex-code-mode-host"
+    fi
+fi
+
+# The installer resolves and downloads the latest release on every run; skip that
+# when a working standalone install is already in place. It self-updates via the
+# app-server daemon afterwards, so this is not a version pin.
+if [ -L "$HOME/.local/bin/codex" ] \
+   && case "$(readlink "$HOME/.local/bin/codex")" in */packages/standalone/*) true ;; *) false ;; esac \
+   && "$HOME/.local/bin/codex" --version >/dev/null 2>&1; then
+    echo "✓ Codex CLI already installed ($("$HOME/.local/bin/codex" --version))"
+else
+    echo "Installing Codex CLI (standalone installer)..."
+    # CODEX_NON_INTERACTIVE: chezmoi scripts have no tty, and the installer
+    # otherwise prompts about PATH edits and about competing managed installs.
+    if CODEX_NON_INTERACTIVE=1 curl -fsSL https://chatgpt.com/codex/install.sh | sh; then
+        echo "✓ Codex CLI installed successfully"
+    else
+        echo "⚠️  Codex CLI installation failed"
+        exit 1
     fi
 fi
 {{ end -}}
