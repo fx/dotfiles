@@ -350,6 +350,66 @@ See `dot_config/opendeck/README.md` for encoder/button configuration details.
 - **Encoder 1**: Volume control
 - **Encoder 2**: Home Assistant light control (requires credentials setup)
 
+## Package Management (paru)
+
+### `paru -Syu` fails: "breaks dependency ... required by lib32-*"
+
+**Symptom:**
+```
+error: failed to prepare transaction (could not satisfy dependencies)
+:: installing audit (4.2.1-1.1) breaks dependency 'audit=4.1.4' required by lib32-audit
+```
+
+**Cause:** Some AUR packages pin an exact repo version — `lib32-audit` declares
+`depends=(audit=$pkgver)`. paru always runs the repo `pacman -Syu` as its own
+transaction before building AUR packages, so the repo upgrade is evaluated while the
+installed AUR package still requires the old version. `paru -Qua` shows the matching AUR
+update exists; paru just never gets to it.
+
+**`CombinedUpgrade` does NOT fix this** (verified). It gives one combined menu and one
+sudo prompt, but paru still downloads the PKGBUILDs and *then* runs the repo transaction
+separately — which fails at the same point. There is no paru.conf setting that resolves
+this; it needs a manual combined transaction.
+
+**Fix** — build the AUR package, then hand it to pacman together with its repo
+dependency so both versions land at once. Using `lib32-audit`/`audit` as the example:
+
+```bash
+# 1. Build the AUR package without installing it (the version pin is a RUNTIME
+#    dep, so --nodeps is safe here — check the PKGBUILD if unsure).
+cp -r ~/.cache/paru/clone/lib32-audit /tmp/ && cd /tmp/lib32-audit
+makepkg -s --nodeps
+
+# 2. Download the repo package (--nodeps, or the download itself trips the same
+#    dependency resolution).
+sudo pacman -Sw --nodeps audit
+
+# 3. Install BOTH in one -U transaction. This is the step that works: pacman sees
+#    audit 4.2.1 and lib32-audit 4.2.1 together, so the pin is satisfied.
+sudo pacman -U /var/cache/pacman/pkg/audit-4.2.1-*.pkg.tar.zst \
+               /tmp/lib32-audit/lib32-audit-4.2.1-*.pkg.tar.zst
+
+# 4. Now the normal upgrade proceeds.
+paru -Syu
+```
+
+Note `pacman -S` does not accept file paths — step 3 must be `-U`, and it cannot be
+merged with `-Syu`. Before running it, confirm nothing *else* pins the same package:
+
+```bash
+for p in $(pactree -rl audit | tail -n +2 | sort -u); do
+  pacman -Qi "$p" | grep -oP 'audit[=><][^ ]*' | sed "s|^|$p -> |"
+done
+```
+
+If only the `lib32-` package appears, upgrading the repo package on its own is safe.
+
+### `local (X) is newer than extra (X)` warnings
+
+Harmless on CachyOS. The CachyOS repos ship their own builds with a bumped pkgrel
+(e.g. `pipewire 1:1.6.8-1.2` vs Arch's `1:1.6.8-1`), so the Arch version legitimately
+looks older. Not related to upgrade failures.
+
 ## Adding New Fixes
 
 When discovering new desktop/gaming fixes:
