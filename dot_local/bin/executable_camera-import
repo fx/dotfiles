@@ -88,11 +88,14 @@ copy_tree() {
 # A camera in Mass Storage mode (or an SD card in a reader) exposes its real
 # filesystem, so enumeration and skip-existing run at full card speed instead of
 # MTP's per-file round-trips (seconds vs. minutes on slow bodies like Sony).
-MSC_MOUNTED=""   # device WE mounted (for cleanup); empty if it was already mounted
+MSC_MOUNTED=()   # devices WE mounted (for cleanup); empty if all were already mounted
 cleanup_msc() {
-    [[ -n "${MSC_MOUNTED:-}" ]] || return 0
-    udisksctl unmount -b "$MSC_MOUNTED" >/dev/null 2>&1 || true
-    MSC_MOUNTED=""
+    [[ ${#MSC_MOUNTED[@]} -gt 0 ]] || return 0
+    local d
+    for d in "${MSC_MOUNTED[@]}"; do
+        udisksctl unmount -b "$d" >/dev/null 2>&1 || true
+    done
+    MSC_MOUNTED=()
 }
 import_via_msc() {
     command -v lsblk >/dev/null 2>&1 || return 1
@@ -106,34 +109,48 @@ import_via_msc() {
     # then import from the card root. Sony writes XAVC S/HS video to
     # PRIVATE/M4ROOT/CLIP and AVCHD to PRIVATE/AVCHD/BDMV/STREAM, neither under
     # DCIM, so a DCIM-only sweep silently drops every video. Track the card root.
-    local card="" dev type rm fstype mnt out m
+    # Scan EVERY removable volume, not just the first with a DCIM: a device can
+    # expose more than one at a time — a DJI drone presents its internal storage
+    # and the inserted SD card as two separate volumes — and stopping at the
+    # first silently imports only one of them.
+    # Match TYPE "disk" as well as "part": a card formatted in-camera often has
+    # no partition table at all, the whole device carries the filesystem, so it
+    # shows up as a disk. A *partitioned* removable disk has an empty FSTYPE and
+    # no mountpoint, so it falls through here and its partitions are matched
+    # instead — no double-mounting.
+    local cards=() dev type rm fstype mnt out m
+    trap cleanup_msc EXIT
     while read -r dev type rm fstype mnt; do
-        [[ "$type" == "part" && "$rm" == "1" ]] || continue
+        [[ ( "$type" == "part" || "$type" == "disk" ) && "$rm" == "1" ]] || continue
         if [[ -n "$mnt" ]]; then
-            [[ -d "$mnt/DCIM" ]] && { card="$mnt"; break; }
+            [[ -d "$mnt/DCIM" ]] && cards+=("$mnt")
         elif [[ -n "$fstype" ]] && command -v udisksctl >/dev/null 2>&1; then
             out=$(udisksctl mount -b "$dev" 2>/dev/null) || continue
             m="${out##* at }"; m="${m%.}"
             if [[ -d "$m/DCIM" ]]; then
-                card="$m"; MSC_MOUNTED="$dev"; break
+                cards+=("$m"); MSC_MOUNTED+=("$dev")
+            else
+                udisksctl unmount -b "$dev" >/dev/null 2>&1 || true
             fi
-            udisksctl unmount -b "$dev" >/dev/null 2>&1 || true
         fi
     done < <(lsblk -rpno NAME,TYPE,RM,FSTYPE,MOUNTPOINT 2>/dev/null)
 
-    [[ -n "$card" ]] || return 1
-    trap cleanup_msc EXIT
+    [[ ${#cards[@]} -gt 0 ]] || return 1
 
     # Stills (DCIM) plus the out-of-DCIM movie trees. copy_tree organizes by
     # mtime and skips existing files, so listing a root a given card doesn't use
     # is harmless. XAVC clips carry a small .XML sidecar in CLIP; it rides along
     # into the date folder — cheap, and useful capture metadata to keep.
-    local roots=() d
-    for d in DCIM PRIVATE/M4ROOT/CLIP PRIVATE/AVCHD/BDMV/STREAM MP_ROOT; do
-        [[ -d "$card/$d" ]] && roots+=("$card/$d")
+    # All cards feed one copy_tree call, so duplicates across volumes collapse
+    # naturally and the run reports a single combined summary.
+    local roots=() card d
+    for card in "${cards[@]}"; do
+        echo "Camera SD card (mass storage) at $card"
+        for d in DCIM PRIVATE/M4ROOT/CLIP PRIVATE/AVCHD/BDMV/STREAM MP_ROOT; do
+            [[ -d "$card/$d" ]] && roots+=("$card/$d")
+        done
     done
 
-    echo "Camera SD card (mass storage) at $card"
     copy_tree "${roots[@]}"
     return 0
 }
