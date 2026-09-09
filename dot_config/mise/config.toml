@@ -1,2 +1,7 @@
 [tools]
+bun = "latest"
+# install.sh runs `mise use -g chezmoi@latest` before applying, which writes
+# chezmoi into this file. Declaring it here too keeps `chezmoi` on PATH after
+# the apply overwrites the file — otherwise every run strips it back out.
+chezmoi = "latest"
 node = "lts"
