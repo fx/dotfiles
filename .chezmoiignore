@@ -19,6 +19,7 @@ shared/
 
 # Desktop-only files (ignored on non-desktop profiles)
 {{ if not .is_desktop }}
+.config/chrome-flags.conf
 .config/hypr/
 .config/mpv/
 .config/opendeck/
