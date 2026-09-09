@@ -19,7 +19,19 @@ fi
 
 echo "Firewall configuration check passed"
 
-# Add firewall rules here as needed
+# SSH, reachable over Tailscale only — deliberately NOT opened to the LAN,
+# since PasswordAuthentication is still enabled on this host.
+# The `on tailscale0` rule also covers the tailnet's IPv6 ULA; the CGNAT rule
+# is the v4 fallback for when traffic arrives before the interface match.
+if ! sudo ufw status | grep -q "^22/tcp on tailscale0"; then
+    sudo ufw allow in on tailscale0 to any port 22 proto tcp comment "SSH via Tailscale"
+fi
+
+if ! sudo ufw status | grep -qE "^22/tcp +ALLOW IN +100\.64\.0\.0/10"; then
+    sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp comment "SSH via Tailscale CGNAT"
+fi
+
+# Add further firewall rules here as needed
 # Example:
 # if ! sudo ufw status | grep -q "8080/tcp"; then
 #     sudo ufw allow 8080/tcp comment "HTTP alt"
