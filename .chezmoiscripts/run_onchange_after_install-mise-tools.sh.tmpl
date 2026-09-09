@@ -9,7 +9,10 @@ if command -v mise >/dev/null 2>&1; then
     eval "$(mise activate bash)" 2>/dev/null || true
 
     # Install global tools (from ~/.config/mise/config.toml)
-    mise install >/dev/null 2>&1 || true
+    if ! mise_out="$(mise install 2>&1)"; then
+        echo "mise: some tools failed to install"
+        echo "$mise_out" | tail -20
+    fi
 fi
 
 {{ end -}}
