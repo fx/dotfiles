@@ -1,6 +1,14 @@
 ---
-# Claude Code marketplace configuration
-# This data is merged into ~/.claude/settings.json via run_onchange_after_ script
+# Claude Code fleet policy.
+# Merged into ~/.claude/settings.json by
+# .chezmoiscripts/run_onchange_after_update-claude-settings.sh.tmpl, which
+# jq-merges `settings` then `marketplace` on top of whatever is already there.
+#
+# In a Coder workspace ~/.claude is still CONTAINER-LOCAL when that script runs;
+# the template's startup script copies it into $DOTFILES_SHARED_HOME afterwards
+# (cp -an, so an established profile is never overwritten). That is the only
+# path by which a profile on a fresh /shared gets these — nothing else writes
+# them, and they exist on velocity only because they were added by hand in 2025.
 
 marketplace:
   extraKnownMarketplaces:
@@ -8,9 +16,24 @@ marketplace:
       source:
         source: git
         url: git@github.com:fx/cc.git
+    anthropic-agent-skills:
+      source:
+        source: github
+        repo: anthropics/skills
 
 settings:
+  # No "Co-Authored-By: Claude" trailer on commits.
   includeCoAuthoredBy: false
   enableAllProjectMcpServers: true
+  autoCompactEnabled: true
+  autoUpdatesChannel: latest
+  effortLevel: high
+  tui: fullscreen
+  # Don't accumulate unsent feedback drafts.
+  feedbackDrafts: "off"
   enabledPlugins:
     fx-dev@fx-cc: true
+    fx-research@fx-cc: true
+    fx-meta@fx-cc: true
+    fx-pa@fx-cc: true
+    release-please@fx-cc: true

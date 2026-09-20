@@ -21,15 +21,27 @@ set -e
 # linked.
 if [ "$CODER" = "true" ]; then
     SHARED_CODEX="${DOTFILES_SHARED_HOME:-/shared/home/default}/.codex"
-    mkdir -p "$SHARED_CODEX"
-    if [ ! -L "$HOME/.codex" ]; then
-        # Migrate any pre-existing real ~/.codex (e.g. a prior login) into shared
-        # without clobbering, then replace it with the symlink.
-        if [ -d "$HOME/.codex" ]; then
-            cp -an "$HOME/.codex/." "$SHARED_CODEX/" 2>/dev/null || true
-            rm -rf "$HOME/.codex"
+    # The mkdir is CHECKED, not assumed. /shared is a node-local hostPath, so a
+    # workspace scheduled onto a node that has never run one gets an empty,
+    # root-owned /shared and this fails with EACCES — and under `set -e` that
+    # aborted the entire `chezmoi apply`, silently skipping every after_ script
+    # that sorts after this one: install-common-packages, install-mise-tools,
+    # setup-shared-symlinks and update-claude-settings. Losing the last of those
+    # is why such a workspace came up with no fx-cc marketplace and no plugins.
+    # Codex persistence is not worth the rest of the profile: degrade to a
+    # container-local ~/.codex and keep going.
+    if mkdir -p "$SHARED_CODEX" 2>/dev/null; then
+        if [ ! -L "$HOME/.codex" ]; then
+            # Migrate any pre-existing real ~/.codex (e.g. a prior login) into shared
+            # without clobbering, then replace it with the symlink.
+            if [ -d "$HOME/.codex" ]; then
+                cp -an "$HOME/.codex/." "$SHARED_CODEX/" 2>/dev/null || true
+                rm -rf "$HOME/.codex"
+            fi
+            ln -sfn "$SHARED_CODEX" "$HOME/.codex"
         fi
-        ln -sfn "$SHARED_CODEX" "$HOME/.codex"
+    else
+        echo "⚠️  $SHARED_CODEX is not writable — ~/.codex stays container-local"
     fi
 fi
 
