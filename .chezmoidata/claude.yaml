@@ -35,5 +35,4 @@ settings:
     fx-dev@fx-cc: true
     fx-research@fx-cc: true
     fx-meta@fx-cc: true
-    fx-pa@fx-cc: true
     release-please@fx-cc: true
