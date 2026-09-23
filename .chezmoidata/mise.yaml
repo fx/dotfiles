@@ -1,0 +1,14 @@
+---
+# Global mise tools managed by dotfiles.
+# Merged into ~/.config/mise/config.toml by dot_config/mise/modify_config.toml.tmpl.
+#
+# Entries here are only ADDED when the key is missing. Manual `mise use -g`
+# installs and hand-edited version pins are never removed or rewritten, so
+# ./install.sh no longer strips tools out of the global config.
+
+mise:
+  tools:
+    bun: latest
+    chezmoi: latest
+    node: lts
+    "github:fx/tx": latest

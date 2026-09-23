@@ -1,0 +1,63 @@
+#!/bin/bash
+# Merge dotfiles-managed tools into the existing global mise config.
+# Keys already present are left untouched, so `mise use -g <tool>` survives apply.
+set -euo pipefail
+
+managed=$(cat <<'MISE_TOOLS'
+{{- range $tool, $version := .mise.tools }}
+{{ $tool }}	{{ $version }}
+{{- end }}
+MISE_TOOLS
+)
+
+cat - | awk -v managed="$managed" '
+function emit_missing() {
+    out = ""
+    n_managed = split(managed, mk, "\n")
+    for (i = 1; i <= n_managed; i++) {
+        if (mk[i] == "") continue
+        split(mk[i], kv, "\t")
+        if (kv[1] in have) continue
+        key = kv[1]
+        if (key !~ /^[A-Za-z0-9_-]+$/) key = "\"" key "\""
+        out = out key " = \"" kv[2] "\"\n"
+    }
+    return out
+}
+{
+    L[++n] = $0
+    if ($0 ~ /^[ \t]*\[/) {
+        if ($0 ~ /^[ \t]*\[tools\][ \t]*(#.*)?$/) {
+            in_tools = 1
+            has_tools = 1
+            tools_end = n
+        } else {
+            in_tools = 0
+        }
+        next
+    }
+    if (in_tools && $0 ~ /^[ \t]*[^ \t#]/) {
+        tools_end = n
+        key = $0
+        sub(/[ \t]*=.*$/, "", key)
+        gsub(/^[ \t]+|[ \t]+$/, "", key)
+        gsub(/^["'"'"']|["'"'"']$/, "", key)
+        have[key] = 1
+    }
+}
+END {
+    missing = emit_missing()
+    if (n == 0) {
+        printf "[tools]\n%s", missing
+        exit
+    }
+    if (!has_tools) {
+        for (i = 1; i <= n; i++) print L[i]
+        if (missing != "") printf "\n[tools]\n%s", missing
+        exit
+    }
+    for (i = 1; i <= tools_end; i++) print L[i]
+    printf "%s", missing
+    for (i = tools_end + 1; i <= n; i++) print L[i]
+}
+'
