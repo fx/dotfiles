@@ -21,6 +21,9 @@ declare -A GAME_PRODUCTS=(
     [era]="WoWClassicEra"
     [anniversary]="WoWCA"
     [anni]="WoWCA"
+    [forever]="WoWF"
+    [wowf]="WoWF"
+    [beta]="wow_beta"
     [d4]="OSI"
     [diablo4]="OSI"
     [diablo]="OSI"
@@ -30,6 +33,18 @@ declare -A GAME_PRODUCTS=(
 
 # How long to wait for Battle.net to be ready (seconds)
 BNET_STARTUP_WAIT=15
+
+# Proton build to use. Either a compat tool name (proton_experimental, proton_10,
+# GE-Proton9-27, ...) or an absolute path to a Proton directory.
+# Overrides whatever Steam has configured for the Battle.net prefix.
+BATTLENET_PROTON="${BATTLENET_PROTON:-proton_experimental}"
+
+# Container runtime: "sniper" (Steam Linux Runtime) or "none" (host libraries).
+# Proton Experimental (Wine 11) builds a GnuTLS priority string containing
+# %NO_SHUFFLE_EXTENSIONS, which needs GnuTLS >= 3.8.4. Sniper ships 3.7.1, so
+# every TLS handshake fails with SEC_E_INTERNAL_ERROR and Battle.net hangs at
+# the login screen. Running on host libraries avoids it.
+BATTLENET_RUNTIME="${BATTLENET_RUNTIME:-none}"
 
 # Check if Battle.net is running
 is_battlenet_running() {
@@ -49,6 +64,8 @@ Games:
     classic, wowc   World of Warcraft Classic
     era             World of Warcraft Classic Era
     anniversary     World of Warcraft Classic Anniversary
+    forever         World of Warcraft Classic Beta (Forever)
+    beta            World of Warcraft Retail Beta
     d4, diablo4     Diablo 4
     d3, diablo3     Diablo 3
 
@@ -171,13 +188,27 @@ resolve_proton_path() {
     return 1
 }
 
-# Find Proton installation (uses Steam's config for this app)
+# Find Proton installation (BATTLENET_PROTON, else Steam's config for this app)
 find_proton() {
     local steam_root="$1"
     local app_id="$2"
     local proton_path=""
 
-    # First, try to use Steam's configured compat tool for this app
+    if [[ -n "$BATTLENET_PROTON" ]]; then
+        if [[ "$BATTLENET_PROTON" == /* && -f "$BATTLENET_PROTON/proton" ]]; then
+            echo "${BATTLENET_PROTON%/}"
+            return 0
+        fi
+        proton_path=$(resolve_proton_path "$steam_root" "$BATTLENET_PROTON")
+        if [[ -n "$proton_path" ]]; then
+            echo "$proton_path"
+            return 0
+        fi
+        echo "Warning: BATTLENET_PROTON='$BATTLENET_PROTON' not found, falling back" >&2
+        proton_path=""
+    fi
+
+    # Next, try to use Steam's configured compat tool for this app
     local tool_name
     tool_name=$(get_steam_compat_tool "$steam_root" "$app_id")
     if [[ -n "$tool_name" ]]; then
@@ -307,12 +338,14 @@ export VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
 
 # Find Steam Linux Runtime (sniper) for library compatibility
 SNIPER_PATH=""
-while IFS= read -r lib_path; do
-    if [[ -d "$lib_path/steamapps/common/SteamLinuxRuntime_sniper" ]]; then
-        SNIPER_PATH="$lib_path/steamapps/common/SteamLinuxRuntime_sniper"
-        break
-    fi
-done < <(get_library_paths "$STEAM_ROOT")
+if [[ "$BATTLENET_RUNTIME" != "none" ]]; then
+    while IFS= read -r lib_path; do
+        if [[ -d "$lib_path/steamapps/common/SteamLinuxRuntime_sniper" ]]; then
+            SNIPER_PATH="$lib_path/steamapps/common/SteamLinuxRuntime_sniper"
+            break
+        fi
+    done < <(get_library_paths "$STEAM_ROOT")
+fi
 
 # Additional paths Proton expects
 export STEAM_COMPAT_LIBRARY_PATHS="$STEAM_ROOT"
@@ -330,7 +363,7 @@ run_battlenet() {
         "$SNIPER_PATH/run" -- "$PROTON_PATH/proton" run "$BNET_EXE" "${args[@]}" &
     else
         if [[ $DEBUG -eq 1 ]]; then
-            echo "Warning: Steam runtime not found, running directly"
+            echo "Runtime:       host libraries (BATTLENET_RUNTIME=$BATTLENET_RUNTIME)"
             echo "Arguments:     ${args[*]}"
         fi
         "$PROTON_PATH/proton" run "$BNET_EXE" "${args[@]}" &
