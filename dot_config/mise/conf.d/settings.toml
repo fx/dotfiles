@@ -1,0 +1,4 @@
+# mise holds back fresh releases (minimum_release_age). These tools ship often and
+# we want them the day they land: `mise up` would otherwise stop one release short.
+[settings]
+minimum_release_age_excludes = ["claude-code", "github:fx/tx"]
