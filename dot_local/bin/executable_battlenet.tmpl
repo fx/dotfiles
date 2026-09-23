@@ -336,6 +336,17 @@ export PROTON_NVIDIA_LIBS_NO_32BIT=1
 export DXVK_ASYNC=1
 export VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
 
+# WoW: Forever build 1.60.1.69913 ships a compute shader whose traversal loops
+# have no iteration bound; on bad node data it never returns and the GPU dies
+# with Xid 109 CTX SWITCH TIMEOUT on world entry. The directory holds SPIR-V
+# with an iteration cap added, keyed by shader hash, so it only affects the
+# shaders it was built from. Regenerate with vkd3d-cap-shader-loops after a
+# client patch. See docs/games/wow-forever.md.
+WOW_SHADER_OVERRIDE="$HOME/.local/share/vkd3d-shader-override/wow-forever"
+if [[ -d "$WOW_SHADER_OVERRIDE" ]]; then
+    export VKD3D_SHADER_OVERRIDE="$WOW_SHADER_OVERRIDE"
+fi
+
 # Find Steam Linux Runtime (sniper) for library compatibility
 SNIPER_PATH=""
 if [[ "$BATTLENET_RUNTIME" != "none" ]]; then

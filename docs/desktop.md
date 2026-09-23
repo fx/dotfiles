@@ -90,6 +90,7 @@ Active per-game rules: Star Citizen (`starcitizen.exe`), Stellaris (`steam_app_2
 
 Game-specific recipes:
 - [Star Citizen](games/star-citizen.md) — required setup for SC 4.7+ on NVIDIA 595 + Hyprland Wayland multi-monitor
+- [WoW: Forever](games/wow-forever.md) — Error #109 / Xid 109 GPU hang on world entry, build 1.60.1.69913
 
 ### Battle.net Launcher
 
@@ -137,6 +138,13 @@ VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
 **References:**
 - https://github.com/doitsujin/dxvk/issues/4510
 - https://github.com/HansKristian-Work/vkd3d-proton/issues/1813
+
+#### WoW freezes at 100% on the load screen, then "Error #109"
+
+WoW: Forever / Classic Beta (`_classic_beta_`, `WowB.exe`) build 1.60.1.69913 has
+a game-side compute shader that never terminates, hanging the GPU on world
+entry. Not a dotfiles or driver problem. Full recipe and workarounds:
+[WoW: Forever](games/wow-forever.md).
 
 #### WoW-specific settings
 

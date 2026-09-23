@@ -1,0 +1,185 @@
+{{ if .is_desktop -}}
+#!/usr/bin/env python3
+"""Bound every loop in a set of SPIR-V shaders.
+
+Reads the .spv modules vkd3d-proton wrote with VKD3D_SHADER_DUMP_PATH, adds an
+iteration counter to every loop, and writes the result where
+VKD3D_SHADER_OVERRIDE can pick it up. A shader that spins forever on bad data
+then exits after CAP iterations instead of hanging the GPU.
+
+Written for WoW: Forever build 1.60.1.69913 (see docs/games/wow-forever.md) but
+the transform is game-agnostic.
+
+Usage:
+    vkd3d-cap-shader-loops <dump-dir> <override-dir> [--cap N]
+
+Requires spirv-tools (spirv-dis, spirv-as, spirv-val).
+"""
+import re, subprocess, glob, os, sys
+
+CAP = 4096
+
+def patch(asm):
+    lines = asm.split("\n")
+    nid = [30000]
+    def newid():
+        nid[0] += 1
+        return "%%%d" % nid[0]
+
+    def has_const(nm):
+        return any(re.match(r'\s*%s = OpConstant %%uint\b' % re.escape(nm), l) for l in lines)
+    ins = [ "%s = OpConstant %%uint %s" % (nm,v)
+            for nm,v in (("%uint_0","0"),("%uint_1","1"),("%uint_4096",str(CAP)))
+            if not has_const(nm) ]
+    if ins:
+        idx = max(i for i,l in enumerate(lines) if re.match(r'\s*%\S+ = OpConstant\b', l))
+        lines[idx+1:idx+1] = ins
+
+    # index blocks
+    labels = {}
+    order = []
+    for i,l in enumerate(lines):
+        m = re.match(r'\s*(%\S+) = OpLabel\s*$', l)
+        if m:
+            labels[m.group(1)] = i
+            order.append((i, m.group(1)))
+    def block_end(start):
+        for j in range(start+1, len(lines)):
+            if re.match(r'\s*%\S+ = OpLabel\s*$', lines[j]): return j-1
+        return len(lines)-1
+    def block_of(i):
+        best = None
+        for s,lbl in order:
+            if s <= i: best = (s,lbl)
+            else: break
+        return best
+    def terminator(lbl):
+        s = labels[lbl]; e = block_end(s)
+        for j in range(e, s, -1):
+            if re.match(r'\s*Op(Branch|BranchConditional|Return|ReturnValue|Kill|Unreachable|Switch)\b', lines[j]):
+                return j
+        return None
+    def is_trampoline_to(lbl, merge):
+        if lbl == merge: return True
+        if lbl not in labels: return False
+        t = terminator(lbl)
+        return t is not None and re.match(r'\s*OpBranch %s\s*$' % re.escape(merge), lines[t]) is not None
+
+    edits = []
+    npatched = 0
+    loops = [(i, m.group(1), m.group(2))
+             for i,l in enumerate(lines)
+             for m in [re.match(r'\s*OpLoopMerge (%\S+) (%\S+) (\w+)\s*$', l)] if m]
+
+    for i, merge, cont in loops:
+        hb = block_of(i)
+        if not hb: continue
+        hs, H = hb
+        phis = [j for j in range(hs+1, i) if re.search(r'= OpPhi ', lines[j])]
+        if not phis: continue
+        toks = lines[phis[0]].split("OpPhi",1)[1].split()[1:]
+        pre = None
+        for val,lbl in zip(toks[0::2], toks[1::2]):
+            if lbl != cont and lbl.startswith('%'): pre = lbl
+        if pre is None or cont not in labels or merge not in labels: continue
+
+        # find the conditional branch that exits this loop, nearest the header
+        lo, hi = hs, labels[merge]
+        found = None
+        for s,lbl in order:
+            if not (lo <= s < hi): continue
+            t = terminator(lbl)
+            if t is None: continue
+            mm = re.match(r'(\s*)OpBranchConditional (%\S+) (%\S+) (%\S+)(.*)$', lines[t])
+            if not mm: continue
+            c, tt, ff = mm.group(2), mm.group(3), mm.group(4)
+            if is_trampoline_to(tt, merge):   exit_on_true = True
+            elif is_trampoline_to(ff, merge): exit_on_true = False
+            else: continue
+            found = (t, mm, c, exit_on_true); break
+        if not found: continue
+        t, mm, cond, exit_on_true = found
+
+        # continue-block terminator (must be OpBranch back to header)
+        ct = terminator(cont)
+        if ct is None or not re.match(r'\s*OpBranch ', lines[ct]): continue
+
+        ctr, ctrn, capv, newc = newid(), newid(), newid(), newid()
+        edits.append((phis[-1]+1, ["       %s = OpPhi %%uint %s %s %%uint_0 %s" % (ctr, ctrn, cont, pre)], None))
+        if exit_on_true:
+            calc = ["       %s = OpUGreaterThanEqual %%bool %s %%uint_4096" % (capv, ctr),
+                    "       %s = OpLogicalOr %%bool %s %s" % (newc, cond, capv)]
+        else:
+            calc = ["       %s = OpULessThan %%bool %s %%uint_4096" % (capv, ctr),
+                    "       %s = OpLogicalAnd %%bool %s %s" % (newc, cond, capv)]
+        rep = "%sOpBranchConditional %s %s %s%s" % (mm.group(1), newc, mm.group(3), mm.group(4), mm.group(5))
+        # calc must not land between OpSelectionMerge/OpLoopMerge and its branch
+        ins_at = t
+        while ins_at-1 > hs and re.match(r'\s*Op(Selection|Loop)Merge\b', lines[ins_at-1]):
+            ins_at -= 1
+        edits.append((t, [], rep))
+        edits.append((ins_at, calc, None))
+        edits.append((ct, ["       %s = OpIAdd %%uint %s %%uint_1" % (ctrn, ctr)], None))
+        npatched += 1
+
+    for idx, add, rep in sorted(edits, key=lambda x: -x[0]):
+        if rep is not None: lines[idx] = rep
+        lines[idx:idx] = add
+    return "\n".join(lines), npatched
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    for a in sys.argv[1:]:
+        if a.startswith("--cap="):
+            global CAP
+            CAP = int(a.split("=", 1)[1])
+    if len(args) != 2:
+        print(__doc__)
+        return 2
+
+    dumpdir, outdir = args
+    os.makedirs(outdir, exist_ok=True)
+    tot = ok = skipped = bad = 0
+
+    for f in sorted(glob.glob(os.path.join(dumpdir, "*.spv"))):
+        h = os.path.basename(f)[:-4]
+        try:
+            asm = subprocess.run(["spirv-dis", f], capture_output=True,
+                                 text=True, check=True).stdout
+        except Exception:
+            continue
+        if "OpLoopMerge" not in asm:
+            continue
+        tot += 1
+        text, n = patch(asm)
+        if n == 0:
+            skipped += 1
+            print("no-match", h)
+            continue
+        ta, tb = f"/tmp/capspv_{h}.spvasm", f"/tmp/capspv_{h}.spv"
+        open(ta, "w").write(text)
+        a = subprocess.run(["spirv-as", "--target-env", "vulkan1.3", ta, "-o", tb],
+                           capture_output=True, text=True)
+        if a.returncode != 0:
+            bad += 1
+            print("assemble-failed", h, a.stderr.strip()[:90])
+            continue
+        # vkd3d enables both of these; validating without them gives false errors
+        v = subprocess.run(["spirv-val", "--target-env", "vulkan1.3",
+                            "--uniform-buffer-standard-layout", "--scalar-block-layout", tb],
+                           capture_output=True, text=True)
+        if v.returncode != 0:
+            bad += 1
+            print("invalid", h, v.stderr.strip()[:90])
+            continue
+        subprocess.run(["cp", tb, os.path.join(outdir, h + ".spv")])
+        ok += 1
+
+    print(f"with loops: {tot} | capped: {ok} | no-match: {skipped} | failed: {bad}")
+    return 0 if bad == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+{{ end -}}
