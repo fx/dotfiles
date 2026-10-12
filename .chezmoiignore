@@ -21,6 +21,7 @@ shared/
 {{ if not .is_desktop }}
 .config/chrome-flags.conf
 .config/hypr/
+.config/hyprwhspr/
 .config/mpv/
 .config/opendeck/
 .config/rofi/

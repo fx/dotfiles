@@ -39,6 +39,8 @@ exec-once = flatpak-nvidia-sync
 exec-once = xrandr --output DP-6 --primary
 exec-once = wl-paste --type text --watch cliphist store
 exec-once = wl-paste --type image --watch cliphist store
+# hyprwhspr speech-to-text daemon (no uwsm, so graphical-session.target never activates)
+exec-once = systemctl --user start hyprwhspr
 
 
 #############################
@@ -252,6 +254,13 @@ bindl = ,XF86AudioNext, exec, playerctl next
 bindl = ,XF86AudioPause, exec, playerctl play-pause
 bindl = ,XF86AudioPlay, exec, playerctl play-pause
 bindl = ,XF86AudioPrev, exec, playerctl previous
+
+# Dictation (hyprwhspr): hold, speak, release -> pasted into the focused window + Enter
+bind  = $mainMod, A, exec, hyprwhspr record start
+bindr = $mainMod, A, exec, hyprwhspr record stop
+# DOIO KB3X-01 macropad, right dial down key (F13; xkb maps it to XF86Tools, so bind by keycode)
+bind  = , code:191, exec, hyprwhspr record start
+bindr = , code:191, exec, hyprwhspr record stop
 
 
 ###############

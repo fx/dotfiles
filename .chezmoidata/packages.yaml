@@ -40,6 +40,7 @@ arch:
     - tailscale
     - hyprshot
     - cliphist
+    - hyprwhspr  # AUR: local Whisper speech-to-text; run `hyprwhspr setup` once (backend, model, systemd unit)
     - flatpak
     # Development
     - coder-bin

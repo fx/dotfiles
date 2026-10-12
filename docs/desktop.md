@@ -358,6 +358,14 @@ See `dot_config/opendeck/README.md` for encoder/button configuration details.
 - **Encoder 1**: Volume control
 - **Encoder 2**: Home Assistant light control (requires credentials setup)
 
+## Dictation (hyprwhspr)
+
+[hyprwhspr](https://github.com/goodroot/hyprwhspr) (AUR) does local Whisper speech-to-text. Hold **Alt+A** (or F13, the DOIO macropad's right-dial down key), speak, release: the text is pasted into the focused window and Enter is pressed.
+
+- **One-time setup:** `hyprwhspr setup` picks the backend/model and installs the `hyprwhspr.service` user unit. Hyprland starts it via `exec-once`.
+- **Config:** `.chezmoidata/hyprwhspr.yaml` keys are merged into `~/.config/hyprwhspr/config.json` (`use_hypr_bindings`, `auto_submit`); everything else is left as setup wrote it.
+- **Release binds need the modifier still held.** `bindr = $mainMod, A` only fires if Alt is down when A comes up — release A first, or recording keeps running (`hyprwhspr record stop` ends it). Devices that release modifier and key in one report (the DOIO pad) need modifier-less keys.
+
 ## Package Management (paru)
 
 ### `paru -Syu` fails: "breaks dependency ... required by lib32-*"

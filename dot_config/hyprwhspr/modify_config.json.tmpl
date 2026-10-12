@@ -1,0 +1,9 @@
+#!/bin/bash
+# Merge dotfiles-managed hyprwhspr settings into the existing config.
+# Managed keys win; everything else (backend, model, ...) is preserved.
+set -euo pipefail
+
+existing=$(cat -)
+[ -n "$existing" ] || existing='{}'
+
+echo "$existing" | jq --argjson managed '{{ .hyprwhspr.config | toJson }}' '. * $managed'
