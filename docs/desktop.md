@@ -575,6 +575,124 @@ Harmless on CachyOS. The CachyOS repos ship their own builds with a bumped pkgre
 (e.g. `pipewire 1:1.6.8-1.2` vs Arch's `1:1.6.8-1`), so the Arch version legitimately
 looks older. Not related to upgrade failures.
 
+## One LAN host unreachable: "no route to host"
+
+### Symptoms
+
+A single LAN host is unreachable while the internet, the gateway, and other hosts
+on the same subnet are fine. The failure is instant, not a timeout:
+
+```
+$ some-cli status
+error: Get "https://internal.example/api/...": dial tcp <lan-ip>:443: connect: no route to host
+```
+
+It looks intermittent and self-healing — works, breaks after a resume, recovers
+minutes later on its own.
+
+### How to diagnose it (do this first)
+
+`no route to host` here is `EHOSTUNREACH` from failed ARP. The question is only
+ever *"does anything answer ARP for that address?"* — answer it directly with
+`arping`, which bypasses the routing table and the neighbour cache:
+
+```bash
+sudo arping -I wlan0 -c 5 <lan-ip>        # the failing host
+sudo arping -I wlan0 -c 3 <gateway>       # a known-good control
+```
+
+Then compare against its neighbours, which is what actually localises the fault:
+
+```bash
+for i in 2 4 5 6 10; do
+  sudo arping -I wlan0 -c 1 -w 1 <prefix>.$i 2>/dev/null | grep -oE '\[[0-9A-Fa-f:]{17}\]'
+done
+```
+
+Read the result this way:
+
+- **Neighbours answer, the target does not** → the target is not announcing
+  itself on the segment. The problem is on that host or its cluster, not on this
+  laptop. Compare the MACs: sibling addresses replying with one shared MAC is the
+  normal signature of VIPs owned by a single node.
+- **Nothing in that half of the subnet answers** → a real segmentation or
+  netmask problem.
+- **The entry reaches `REACHABLE` but traffic still fails** → then it is not ARP.
+
+### Dead ends — do not repeat these
+
+The intermittency invites wrong theories. These were all investigated and none of
+them was the cause:
+
+- **Wi-Fi power save, `mt7921e` quirks, suspend/resume flushing.** These change
+  how fast a doomed ARP gives up, not whether it can ever succeed.
+- **Neighbour-cache flushing.** A flush appearing to fix it is coincidence: the
+  entry gets repopulated passively when the peer next sends a frame. An entry
+  cycling `INCOMPLETE` → `FAILED` and *never* reaching `REACHABLE` means ARP is
+  getting no reply at all — there is no stale entry to flush.
+- **Blaming a /23 (or any wide) netmask.** A wide prefix is a legitimate design.
+  Verify it before suspecting it: if other hosts in the far half answer ARP, the
+  prefix is fine and the fault is that one host.
+
+### `ping` is not a valid reachability test here
+
+**A VIP can answer TCP while lying on ICMP.** The address in question replied to
+echo requests with `Redirect Host` and `Destination Host Unreachable` — from a
+*different* source address — while `:443` was open and serving the whole time:
+
+```
+From <node-ip> icmp_seq=2 Redirect Host(New nexthop: <vip>)
+From <node-ip> icmp_seq=1 Destination Host Unreachable
+```
+
+Two tells that this is a VIP, not a down host:
+
+- The ICMP error comes from an address that is neither the target nor the
+  gateway, and `ip neigh` shows it sharing **one MAC** with the target — one
+  node owning both addresses.
+- Pinging that node's *primary* address succeeds with 0% loss, so ICMP is fine
+  on the box generally.
+
+Always confirm with the transport the service actually uses:
+
+```bash
+timeout 3 bash -c 'echo >/dev/tcp/<vip>/443' && echo OPEN
+curl -sS -k -o /dev/null -w 'connect=%{time_connect}s http=%{http_code}\n' https://<vip>/
+```
+
+A completed TLS handshake — even answering `404` — means reachable. Trusting
+`ping` here produces a false "still broken" verdict indefinitely.
+
+### Workaround — and removing it again
+
+If ARP genuinely fails (`arping` silent, TCP gives `EHOSTUNREACH`) and the host
+is reachable through the router, a more-specific route makes that path
+deterministic:
+
+```bash
+nmcli connection modify "<profile>" +ipv4.routes "<other-subnet>/24 <gateway>"
+```
+
+Persist it in the NM profile. A bare `sudo ip route add` is erased by every
+reassociation, which includes suspend/resume — that is the cause of the
+"route vanished again after sleep" loop, not a wake-up bug.
+
+**Remove it as soon as the host answers ARP again**, both the route and any
+`/32` added to punch back through it:
+
+```bash
+nmcli connection modify "<profile>" ipv4.routes ""
+sudo ip route del <other-subnet>/24 via <gateway> dev wlan0
+```
+
+Left in place it becomes self-sustaining: the `/24` via the gateway overrides
+the on-link connected route for that whole half of the subnet, so a `/32` gets
+added to undo it, and the two then have to be maintained against each other
+forever. The connected route was always correct — a `/23` spans both halves.
+
+Deliberately not managed by chezmoi — the addresses are specific to one private
+network and this is a public repo.
+
 ## Adding New Fixes
 
 When discovering new desktop/gaming fixes:
