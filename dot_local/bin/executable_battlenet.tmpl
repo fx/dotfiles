@@ -219,6 +219,20 @@ find_proton() {
         fi
     fi
 
+    # Fallback: any tool dropped into compatibilitytools.d (GE-Proton et al).
+    # Steam only records a compat tool in config.vdf once it has managed the
+    # app itself, so a prefix created by battlenet-install lands here.
+    local compat_dir
+    for compat_dir in "$steam_root/compatibilitytools.d" "$HOME/.steam/root/compatibilitytools.d"; do
+        [[ -d "$compat_dir" ]] || continue
+        for tool_dir in $(ls -1dv "$compat_dir"/*/ 2>/dev/null | tac); do
+            if [[ -f "${tool_dir}proton" ]]; then
+                echo "${tool_dir%/}"
+                return 0
+            fi
+        done
+    done
+
     # Fallback: search for any Proton
     while IFS= read -r lib_path; do
         local common="$lib_path/steamapps/common"
@@ -266,12 +280,13 @@ done
 # Find paths
 STEAM_ROOT=$(find_steam_root) || {
     echo "Error: Could not find Steam installation"
+    echo "Run 'battlenet-install' to set up Steam, Proton and Battle.net"
     exit 1
 }
 
 BNET_PREFIX=$(find_battlenet_prefix "$STEAM_ROOT") || {
     echo "Error: Could not find Battle.net installation"
-    echo "Install Battle.net as a non-Steam game first"
+    echo "Run 'battlenet-install', or install Battle.net as a non-Steam game"
     exit 1
 }
 
@@ -280,6 +295,7 @@ APP_ID=$(basename "$BNET_PREFIX")
 
 PROTON_PATH=$(find_proton "$STEAM_ROOT" "$APP_ID") || {
     echo "Error: Could not find Proton installation"
+    echo "Run 'battlenet-install' to install GE-Proton"
     exit 1
 }
 
@@ -308,19 +324,36 @@ else
     echo "Launching Battle.net..."
 fi
 
-# Ensure Wine reports as Windows 11 (WoW requires 11+, Proton defaults to win7)
-# The Wine version that apps see via GetVersionEx is controlled by HKCU\Software\Wine\Version,
-# NOT by HKLM\..\CurrentVersion registry keys (those are cosmetic).
+# Is a single value set under a single key in the prefix's user.reg?
+# Scoping matters: a file-wide grep for a value matches unrelated keys.
+# ENVIRON is used rather than -v because awk's -v eats the doubled backslashes
+# that user.reg uses in key paths.
+prefix_reg_value_is() {  # key name value
+    RK="[$1]" RN="\"$2\"=$3" awk '
+        index($0,"[")==1 { inkey = (index($0,ENVIRON["RK"])==1) }
+        inkey && $0==ENVIRON["RN"] { ok=1 }
+        END { exit(ok?0:1) }
+    ' "$BNET_PREFIX/pfx/user.reg"
+}
+
+# Ensure Wine reports as Windows 11 (WoW requires 11+, Proton defaults to win7).
+# The version apps see via GetVersionEx comes from HKCU\Software\Wine\Version,
+# NOT the cosmetic HKLM\..\CurrentVersion keys.
+#
+# Both halves must be scoped to the bare [Software\\Wine] key. GE-Proton ships
+# AppDefaults entries for unrelated games that already say win11, so a file-wide
+# grep matches one of those and skips the patch; and the bare key does not exist
+# in a fresh prefix, so an in-place edit has nothing to substitute. reg.exe
+# creates it.
 ensure_win11_prefix() {
-    local userreg="$BNET_PREFIX/pfx/user.reg"
-    [[ -f "$userreg" ]] || return
-    if grep -q '"Version"="win11"' "$userreg" 2>/dev/null; then
+    [[ -f "$BNET_PREFIX/pfx/user.reg" ]] || return
+    if prefix_reg_value_is 'Software\\Wine' Version '"win11"'; then
         return
     fi
     echo "Patching Wine prefix to report Windows 11..."
-    sed -i '/\[Software\\\\Wine\]/,/^\[/ s/"Version"="[^"]*"/"Version"="win11"/' "$userreg"
+    "$PROTON_PATH/proton" run reg.exe add 'HKCU\Software\Wine' \
+        /v Version /t REG_SZ /d win11 /f >/dev/null 2>&1
 }
-ensure_win11_prefix
 
 # Set up Proton environment
 export STEAM_COMPAT_DATA_PATH="$BNET_PREFIX"
@@ -361,6 +394,36 @@ fi
 # Additional paths Proton expects
 export STEAM_COMPAT_LIBRARY_PATHS="$STEAM_ROOT"
 export STEAM_COMPAT_INSTALL_PATH="$BNET_PREFIX"
+
+# Battle.net offers its embedded browser (CEF) the renderers "d3d11,warp,desktop"
+# and picks the hardware one first. Under Proton that surface comes up black —
+# the login form is laid out and the page loads fine (statusCode=200), you just
+# cannot see any of it. Forcing software rendering makes it visible.
+#
+# The client rewrites this file when it exits, so re-assert the setting before
+# every launch rather than once at install time. Skipped while the client is
+# running, since it would clobber the file on exit anyway.
+ensure_browser_config() {
+    local cfg="$BNET_PREFIX/pfx/drive_c/users/steamuser/AppData/Roaming/Battle.net/Battle.net.config"
+    [[ -f "$cfg" ]] || return
+    is_battlenet_running && return
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "Warning: jq not found, cannot check browser hardware acceleration"
+        return
+    fi
+    [[ "$(jq -r '.Client.HardwareAcceleration // empty' "$cfg" 2>/dev/null)" == "false" ]] && return
+    echo "Disabling Battle.net browser hardware acceleration (black login page fix)..."
+    if jq '.Client.HardwareAcceleration = "false"' "$cfg" > "$cfg.tmp" 2>/dev/null; then
+        mv "$cfg.tmp" "$cfg"
+    else
+        rm -f "$cfg.tmp"
+        echo "Warning: could not update $(basename "$cfg")"
+    fi
+}
+
+# Needs the compat env above, so it runs here rather than at parse time.
+ensure_win11_prefix
+ensure_browser_config
 
 # Function to run Battle.net with optional arguments
 run_battlenet() {

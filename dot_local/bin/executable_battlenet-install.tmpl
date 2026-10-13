@@ -1,0 +1,309 @@
+{{ if .is_desktop -}}
+#!/bin/bash
+# Install Steam + Proton + Battle.net so that `battlenet` can launch games
+# Managed by github.com/fx/dotfiles
+#
+# Usage:
+#   battlenet-install           # install whatever is missing
+#   battlenet-install --force   # re-run the Battle.net installer even if present
+#   battlenet-install --help
+#
+# The Battle.net installer itself is a GUI wizard and the account login needs
+# 2FA, so those two steps are interactive. Everything around them is automated.
+
+set -euo pipefail
+
+# Fixed app ID for the prefix this script creates. Steam assigns non-Steam
+# shortcuts IDs above 2^31, so this cannot collide with a real Steam app.
+BNET_APP_ID="2147483651"
+
+INSTALLER_URL="https://downloader.battle.net/download/getInstaller?os=win&installer=Battle.net-Setup.exe"
+GE_RELEASE_API="https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest"
+
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/battlenet-install"
+DEFAULT_STEAM_ROOT="$HOME/.local/share/Steam"
+
+# Same search order as the `battlenet` launcher
+STEAM_PATHS=(
+    "$HOME/.local/share/Steam"
+    "$HOME/.steam/steam"
+    "/mnt/d/SteamLibrary"
+)
+
+FORCE=0
+
+show_help() {
+    cat << 'EOF'
+Battle.net Installer (Steam + Proton, no Steam shortcut needed)
+
+Usage:
+    battlenet-install [--force]
+
+Steps performed:
+    1. Install the `steam` package (multilib) if missing
+    2. Create the Steam directory layout and library manifest if missing
+    3. Install GE-Proton into compatibilitytools.d if no Proton is present
+    4. Download and run the Battle.net installer inside a Proton prefix
+    5. Write a .desktop entry so it shows up in rofi and other launchers
+
+Options:
+    --force     Re-run the Battle.net installer even if it is already installed
+    --help      Show this help
+
+Afterwards, launch with:
+    battlenet           # launcher
+    battlenet wow       # straight into WoW
+EOF
+}
+
+step() { echo; echo "==> $*"; }
+info() { echo "    $*"; }
+die()  { echo "Error: $*" >&2; exit 1; }
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h) show_help; exit 0 ;;
+        --force)   FORCE=1; shift ;;
+        *)         die "Unknown argument: $1 (try --help)" ;;
+    esac
+done
+
+# --- 1. Steam package ------------------------------------------------------
+
+step "Checking Steam package"
+if pacman -Q steam >/dev/null 2>&1; then
+    info "steam already installed"
+else
+    command -v paru >/dev/null 2>&1 || die "paru not found; install it first"
+    info "Installing steam (this pulls a lot of lib32 dependencies)..."
+    paru -S --needed --noconfirm steam || die "Failed to install steam"
+fi
+
+# --- 2. Steam directory layout --------------------------------------------
+
+step "Checking Steam directory layout"
+STEAM_ROOT=""
+for path in "${STEAM_PATHS[@]}"; do
+    if [[ -f "$path/config/libraryfolders.vdf" ]]; then
+        STEAM_ROOT="$path"
+        break
+    fi
+done
+
+if [[ -n "$STEAM_ROOT" ]]; then
+    info "Using existing Steam root: $STEAM_ROOT"
+else
+    STEAM_ROOT="$DEFAULT_STEAM_ROOT"
+    info "No Steam root found, bootstrapping: $STEAM_ROOT"
+    mkdir -p "$STEAM_ROOT"/config \
+             "$STEAM_ROOT"/steamapps/common \
+             "$STEAM_ROOT"/steamapps/compatdata \
+             "$STEAM_ROOT"/compatibilitytools.d
+    # Minimal library manifest. Steam rewrites this on its first real run; it
+    # exists so the `battlenet` launcher can locate the root without Steam
+    # ever having been started.
+    cat > "$STEAM_ROOT/config/libraryfolders.vdf" << EOF
+"libraryfolders"
+{
+	"0"
+	{
+		"path"		"$STEAM_ROOT"
+	}
+}
+EOF
+fi
+
+# The symlinks Steam normally creates; protonup-qt and other tools look here.
+mkdir -p "$HOME/.steam"
+[[ -e "$HOME/.steam/root"  ]] || ln -s "$STEAM_ROOT" "$HOME/.steam/root"
+[[ -e "$HOME/.steam/steam" ]] || ln -s "$STEAM_ROOT" "$HOME/.steam/steam"
+
+# --- 3. Proton -------------------------------------------------------------
+
+# Return the first usable Proton, preferring the newest entry in
+# compatibilitytools.d over Steam's own builds.
+find_any_proton() {
+    local dir
+    for dir in $(ls -1dv "$STEAM_ROOT"/compatibilitytools.d/*/ 2>/dev/null | tac); do
+        [[ -f "${dir}proton" ]] && { echo "${dir%/}"; return 0; }
+    done
+    for dir in "$STEAM_ROOT"/steamapps/common/Proton*/; do
+        [[ -f "${dir}proton" ]] && { echo "${dir%/}"; return 0; }
+    done
+    return 1
+}
+
+install_ge_proton() {
+    local json url sum_url tarball sumfile
+    json=$(curl -fsSL --max-time 30 "$GE_RELEASE_API") \
+        || die "Could not reach the GE-Proton release API"
+    url=$(grep -oE '"browser_download_url": *"[^"]*x86_64\.tar\.gz"' <<< "$json" \
+        | head -1 | cut -d'"' -f4)
+    [[ -n "$url" ]] || die "Could not find an x86_64 GE-Proton asset"
+    sum_url="${url%.tar.gz}.sha512sum"
+    tarball="$CACHE_DIR/$(basename "$url")"
+    sumfile="$CACHE_DIR/$(basename "$sum_url")"
+
+    info "Downloading $(basename "$url") (~400 MB)..."
+    mkdir -p "$CACHE_DIR"
+    curl -fL --progress-bar -o "$tarball" "$url" || die "GE-Proton download failed"
+    curl -fsSL -o "$sumfile" "$sum_url" || die "GE-Proton checksum download failed"
+
+    info "Verifying checksum..."
+    (cd "$CACHE_DIR" && sha512sum -c "$(basename "$sumfile")") \
+        || die "GE-Proton checksum mismatch - refusing to install"
+
+    info "Extracting into compatibilitytools.d..."
+    mkdir -p "$STEAM_ROOT/compatibilitytools.d"
+    tar -xf "$tarball" -C "$STEAM_ROOT/compatibilitytools.d"
+    rm -f "$tarball" "$sumfile"
+}
+
+step "Checking Proton"
+if PROTON_PATH=$(find_any_proton); then
+    info "Using existing Proton: $PROTON_PATH"
+else
+    info "No Proton found, installing GE-Proton"
+    install_ge_proton
+    PROTON_PATH=$(find_any_proton) || die "GE-Proton install did not produce a usable proton"
+    info "Installed: $PROTON_PATH"
+fi
+
+# --- 4. Battle.net ---------------------------------------------------------
+
+BNET_PREFIX="$STEAM_ROOT/steamapps/compatdata/$BNET_APP_ID"
+BNET_EXE="$BNET_PREFIX/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe"
+
+# --- Desktop entry ---------------------------------------------------------
+
+# rofi's drun mode - like every other launcher - lists .desktop files, not
+# executables on PATH, so `battlenet` is invisible without one. This lives here
+# rather than in chezmoi because the entry should only exist on machines where
+# Battle.net is actually installed, not on every desktop profile.
+extract_icon() {
+    local icons="$1" tmp png size
+    command -v wrestool >/dev/null 2>&1 && command -v icotool >/dev/null 2>&1 || {
+        info "icoutils not installed - the entry will fall back to a generic icon"
+        return 0
+    }
+    tmp=$(mktemp -d)
+    # Resource type 14 is RT_GROUP_ICON.
+    if wrestool -x -t 14 "$BNET_EXE" -o "$tmp" 2>/dev/null; then
+        icotool -x -o "$tmp" "$tmp"/*.ico 2>/dev/null || true
+        for size in 256 128 64 48 32; do
+            png=$(find "$tmp" -name "*${size}x${size}*.png" 2>/dev/null | head -1)
+            if [[ -n "$png" ]]; then
+                mkdir -p "$icons/${size}x${size}/apps"
+                cp "$png" "$icons/${size}x${size}/apps/battlenet.png"
+            fi
+        done
+    fi
+    rm -rf "$tmp"
+}
+
+install_desktop_entry() {
+    local apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    local icons="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
+    mkdir -p "$apps"
+
+    extract_icon "$icons"
+
+    cat > "$apps/battlenet.desktop" << 'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Battle.net
+GenericName=Game Launcher
+Comment=Blizzard launcher running under Proton
+Exec=battlenet
+Icon=battlenet
+Terminal=false
+Categories=Game;
+StartupNotify=false
+Keywords=blizzard;wow;warcraft;diablo;starcraft;hearthstone;
+Actions=wow;classic;d4;
+
+[Desktop Action wow]
+Name=World of Warcraft
+Exec=battlenet wow
+
+[Desktop Action classic]
+Name=WoW Classic
+Exec=battlenet classic
+
+[Desktop Action d4]
+Name=Diablo IV
+Exec=battlenet d4
+DESKTOP
+
+    # Both are best-effort: launchers pick the entry up on their next scan
+    # regardless, and a missing tool must not fail the install.
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database -q "$apps" 2>/dev/null || true
+    fi
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        gtk-update-icon-cache -qft "$icons" 2>/dev/null || true
+    fi
+
+    info "Desktop entry: $apps/battlenet.desktop"
+}
+
+step "Checking Battle.net"
+if [[ -f "$BNET_EXE" && $FORCE -eq 0 ]]; then
+    info "Already installed: $BNET_PREFIX"
+    info "Re-run with --force to install it again."
+    step "Refreshing desktop entry"
+    install_desktop_entry
+    echo
+    echo "Done. Launch with: battlenet"
+    exit 0
+fi
+
+mkdir -p "$CACHE_DIR" "$BNET_PREFIX"
+SETUP_EXE="$CACHE_DIR/Battle.net-Setup.exe"
+info "Downloading the Battle.net installer..."
+curl -fL --progress-bar -o "$SETUP_EXE" "$INSTALLER_URL" \
+    || die "Battle.net installer download failed"
+
+export STEAM_COMPAT_DATA_PATH="$BNET_PREFIX"
+export STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT"
+export STEAM_COMPAT_INSTALL_PATH="$BNET_PREFIX"
+export STEAM_COMPAT_LIBRARY_PATHS="$STEAM_ROOT"
+export SteamAppId="$BNET_APP_ID"
+export SteamGameId="$BNET_APP_ID"
+export STEAM_COMPAT_APP_ID="$BNET_APP_ID"
+# RTX 4000+ performance fix, same as the launcher sets
+export PROTON_NVIDIA_LIBS_NO_32BIT=1
+
+echo
+info "Starting the Battle.net installer under Proton."
+info "This opens a GUI wizard - click through it and log in when asked."
+info "Prefix: $BNET_PREFIX"
+echo
+"$PROTON_PATH/proton" run "$SETUP_EXE" || true
+
+# The bootstrapper hands off to a background process, so poll for the result
+# instead of trusting the exit of `proton run`.
+info "Waiting for the install to finish (up to 5 minutes)..."
+for _ in $(seq 1 60); do
+    [[ -f "$BNET_EXE" ]] && break
+    sleep 5
+done
+
+echo
+if [[ -f "$BNET_EXE" ]]; then
+    step "Creating desktop entry"
+    install_desktop_entry
+    echo
+    echo "Battle.net installed: $BNET_PREFIX"
+    echo
+    echo "Launch with:"
+    echo "    battlenet          # launcher"
+    echo "    battlenet wow      # straight into WoW"
+else
+    echo "Battle.net.exe not found yet."
+    echo "If the wizard is still running, let it finish and re-run this script"
+    echo "to verify, or check the prefix directly:"
+    echo "    $BNET_PREFIX"
+    exit 1
+fi
+{{ end -}}

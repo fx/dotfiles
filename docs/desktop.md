@@ -85,6 +85,44 @@ Game-specific recipes:
 - [Star Citizen](games/star-citizen.md) — required setup for SC 4.7+ on NVIDIA 595 + Hyprland Wayland multi-monitor
 - [WoW: Forever](games/wow-forever.md) — Error #109 / Xid 109 GPU hang on world entry, build 1.60.1.69913
 
+### Installing Steam + Battle.net
+
+Script: `~/.local/bin/battlenet-install`
+
+```bash
+battlenet-install           # install whatever is missing
+battlenet-install --force   # re-run the Battle.net installer
+```
+
+The `battlenet` launcher does not use the Steam client, but it does depend on a
+Steam *installation* — it finds the library root, the Proton build and the Wine
+prefix by reading Steam's on-disk layout. `battlenet-install` produces that
+layout without requiring a Steam login:
+
+1. Installs the `steam` package (also declared in `.chezmoidata/packages.yaml`,
+   so a desktop `./install.sh` already brings it in)
+2. Creates `~/.local/share/Steam` with a minimal `config/libraryfolders.vdf`,
+   plus the usual `~/.steam/root` and `~/.steam/steam` symlinks, if Steam has
+   never been started
+3. Installs the latest GE-Proton into `compatibilitytools.d` (checksum
+   verified) — but only if no Proton is present already
+4. Downloads `Battle.net-Setup.exe` and runs it under Proton in a prefix at
+   `steamapps/compatdata/2147483651`
+
+Steps 1–3 are unattended. Step 4 is not: the Blizzard installer is a GUI wizard
+and the account login needs 2FA, so click through it when it appears.
+
+**Prefix app ID:** `2147483651` is arbitrary and fixed by the script. Steam
+assigns non-Steam shortcuts IDs above 2^31, so it cannot collide with a real
+app. If you *also* add Battle.net to Steam as a non-Steam game, there will be
+two prefixes and the launcher picks whichever it scans first — pick one.
+
+**Steam Linux Runtime:** `SteamLinuxRuntime_sniper` is a Steam depot and needs a
+logged-in client to download, so this path does not get it. The launcher
+detects that and runs Proton directly instead of inside the pressure-vessel
+container; `battlenet --debug` prints which one is in use. If you later log into
+Steam and the runtime appears, the launcher starts using it with no changes.
+
 ### Battle.net Launcher
 
 Script: `~/.local/bin/battlenet`
@@ -118,7 +156,102 @@ VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
 
 **Cause:** Proton defaults the Wine version to `win7`. WoW dropped Win10 support and requires Windows 11+. Battle.net checks `GetVersionEx()` which Wine controls via `HKCU\Software\Wine\Version` (not the cosmetic `HKLM\..\CurrentVersion` registry keys).
 
-**Fix:** The `battlenet` script automatically patches `user.reg` to set `Version`=`win11` under `Software\Wine`. No manual action needed — it runs on every launch and skips if already patched.
+**Fix:** The `battlenet` script sets `Version`=`win11` under the bare
+`[Software\\Wine]` key in the prefix, via `reg.exe` through Proton. It runs on
+every launch and skips if already set.
+
+**Two traps this originally fell into** (the patch silently did nothing for
+months — check with the commands below before trusting it):
+
+1. *The guard was too broad.* It grepped the whole of `user.reg` for
+   `"Version"="win11"`. GE-Proton ships `Software\Wine\AppDefaults\*` entries
+   for unrelated games, at least one of which is already `win11`, so the grep
+   matched and the patch returned early every time.
+2. *The target key does not exist.* A fresh prefix has
+   `Software\Wine\AppDefaults\...` subkeys but no bare `[Software\\Wine]` key,
+   so an in-place `sed` substitution had nothing to match. `reg.exe` creates it.
+
+**Verify it actually applied** — scope the check to the key, and note that
+`awk -v` eats the doubled backslashes in `user.reg` key paths, so pass them
+through the environment instead:
+
+```bash
+UR=~/.local/share/Steam/steamapps/compatdata/<appid>/pfx/user.reg
+RK='[Software\\Wine]' RN='"Version"="win11"' awk '
+    index($0,"[")==1 { inkey = (index($0,ENVIRON["RK"])==1) }
+    inkey && $0==ENVIRON["RN"] { ok=1 }
+    END { exit(ok?0:1) }' "$UR" && echo "win11 set" || echo "NOT set"
+```
+
+#### Battle.net login form renders black / "can't see content"
+
+**Symptoms:** The launcher opens and the login form is laid out, but the
+embedded Chromium (CEF) surface is solid black — no text, no fields visible.
+
+**Cause:** The client offers its embedded browser the renderers
+`d3d11,warp,desktop` (see `Supplying list of renderers` in the client log) and
+picks the hardware one first. Under Proton that surface comes up black. The page
+itself is fine — it loads with `statusCode=200`; you just cannot see it.
+
+**Fix:** Force software rendering in the client config:
+
+```json
+"Client": { "HardwareAcceleration": "false" }
+```
+
+in `<prefix>/pfx/drive_c/users/steamuser/AppData/Roaming/Battle.net/Battle.net.config`.
+The `battlenet` launcher now asserts this before every launch (`jq`), because
+the client rewrites that file when it exits. Confirmed on AMD Radeon 780M
+(RADV) under Hyprland.
+
+> The first launch after `battlenet-install` comes from the installer wizard,
+> not from `battlenet`, so that one window can still be black. Close it and run
+> `battlenet`.
+
+**If the surface is blank rather than black, check the network instead.** CEF
+logs to the prefix, and an empty panel is often a page that never loaded:
+
+```bash
+LOGS=~/.local/share/Steam/steamapps/compatdata/<appid>/pfx/drive_c/users/steamuser/AppData/Local/Battle.net/Logs
+grep -c 10051 "$(ls -t "$LOGS"/libcef-*.log | head -1)"      # 10051 = WSAENETUNREACH
+grep -E "UAuth: (begin loading|finished loading)" "$(ls -t "$LOGS"/battle.net-*.log | head -1)"
+```
+
+A healthy run ends with `UAuth: finished loading. statusCode=200 state=Login`.
+A broken one shows repeated `connect failed: 10051` in the CEF log and
+`UAuth: tassadar Login URL is empty!` in the client log.
+
+Two log lines are **benign** and appear in working runs — don't chase them:
+`WSALookupServiceBegin failed with: 0` (Wine has no network-change notifier),
+and a single early `missing tassadar url` that is immediately followed by
+`UAuth: setting url: https://account.battle.net/... reason: reset`.
+
+Note the client log timestamps are UTC while `stat` and the shell are local
+time; a run can look hours adrift when it is not.
+
+To see what the prefix is actually doing on the wire, trace winsock rather than
+guessing — `connect failed, status 0xc00000a3` is `WSAEWOULDBLOCK` on a
+non-blocking socket and is normal, not an error:
+
+```bash
+WINEDEBUG=+winsock <proton>/proton run "<prefix>/.../Battle.net.exe" 2>&1 | tee /tmp/winsock.log
+grep -oE 'address [0-9.]+, port [0-9]+' /tmp/winsock.log | sort | uniq -c
+```
+
+**Dead end — do not repeat:** a burst of `connect failed: 10051` in the CEF log
+on the *very first* launch right after install, with empty caches, does not
+recur and is not worth chasing — later launches connect cleanly with no change
+made. It is also not the black-screen cause: the page loads fine while the
+surface is black.
+
+**Dead end — do not repeat:** WPAD. If the LAN search domain resolves `wpad`
+(`getent hosts wpad` returns an address) to a host that does not serve
+`wpad.dat`, proxy autodiscovery looks like an excellent explanation for every
+CEF connect failing at once. It is not: setting
+`"AutoDetect"=dword:00000000` under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` does
+**not** stop the `wpad` lookups (verified by count in a winsock trace before and
+after), and the lookups are present in healthy runs too.
 
 #### Game freezes when switching workspaces
 

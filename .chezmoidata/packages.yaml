@@ -8,9 +8,11 @@ common:
   debian:
     - dnsutils  # dig
     - whois
+    - jq        # JSON merging in the claude-settings script and battlenet
   arch:
     - bind      # dig
     - whois
+    - jq        # JSON merging in the claude-settings script and battlenet
 
 # Arch Linux packages (desktop profile only)
 arch:
@@ -66,6 +68,8 @@ arch:
     - gst-plugins-ugly
     - gst-libav
     # Gaming / Proton tooling
+    - steam  # battlenet-install needs its library layout, not the client itself
+    - icoutils  # battlenet-install pulls the launcher icon out of Battle.net.exe
     - protonup-qt
     - lug-helper  # Star Citizen on Linux prefix/launcher manager
     # Printing (CUPS + driverless IPP Everywhere via Avahi)

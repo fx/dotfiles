@@ -31,5 +31,6 @@ shared/
 .local/bin/ha-light
 .local/bin/voice-pa
 .local/bin/battlenet
+.local/bin/battlenet-install
 .local/share/applications/
 {{ end }}
