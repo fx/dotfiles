@@ -1,6 +1,55 @@
 # Dotfiles Principles
 
-**⚠️ WARNING: This is a PUBLIC repository! Never commit personal information, credentials, API keys, or proprietary content to this repository.**
+## ⚠️ THIS IS A PUBLIC REPOSITORY
+
+Everything written here is world-readable. This applies to **every** file —
+`docs/`, scripts, comments, commit messages — not just config with secrets in it.
+
+### Never write these into the repo
+
+- Credentials, API keys, tokens, passwords
+- Internal/private hostnames and domains (anything not resolvable on the public
+  internet, and any personal domain)
+- Private IP addresses and MAC addresses (`10.x`, `172.16-31.x`, `192.168.x`,
+  `100.64.x` / Tailscale, link-local)
+- SSID names, Wi-Fi BSSIDs, router or AP identifiers
+- Internal service, machine, workspace, or cluster names; internal URLs;
+  employer/client names and proprietary details
+- Real usernames, emails, phone numbers, physical addresses
+
+### The trap: debugging output
+
+**The most common way this leaks is pasting real output from a live debugging
+session into `docs/`.** Terminal output, error messages, `ip`/`nmcli`/`curl`
+transcripts, and log excerpts are full of real hostnames, IPs, and MACs. They are
+useful to document — but you MUST rewrite them with placeholders first. Never
+copy a real transcript verbatim.
+
+Use generic placeholders that keep the example legible:
+
+| Instead of | Write |
+|---|---|
+| a real internal hostname | `internal.example`, `service.example` |
+| a real private IP | `<lan-ip>`, `10.0.0.5`, `192.0.2.10` (TEST-NET) |
+| a real MAC | `aa:bb:cc:dd:ee:ff` |
+| a real SSID | `<ssid>`, `MyNetwork` |
+| a real internal tool/host name | `some-cli`, `<host>` |
+
+The documented *cause, fix, and verification* are what matter. The specific
+address something failed at never is.
+
+### Before writing or committing
+
+Grep your own changes and confirm they come back clean:
+
+```bash
+git diff; git status --short          # review untracked files too
+grep -rInE '192\.168\.|10\.[0-9]+\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}' <changed-files>
+```
+
+Then re-read each changed file and ask: *would a stranger learn anything about
+this person's network, employer, or accounts from it?* If yes, replace it with a
+placeholder. When unsure whether something is sensitive, treat it as sensitive.
 
 ## Desktop Profile
 
