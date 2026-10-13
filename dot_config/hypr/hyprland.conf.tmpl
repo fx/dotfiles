@@ -174,7 +174,7 @@ $mainMod = ALT
 bind = $mainMod, Return, exec, $terminal
 bind = $mainMod, Q, killactive,
 bind = $mainMod, L, exec, hyprlock
-bind = $mainMod, E, exec, $HOME/.local/bin/ai pick
+bind = $mainMod, E, exec, $HOME/.local/share/mise/shims/tx rc pick
 bind = $mainMod, V, togglefloating,
 bind = $mainMod, D, exec, $menu
 bind = $mainMod, P, pseudo,
@@ -261,6 +261,12 @@ bindr = $mainMod, A, exec, hyprwhspr record stop
 # DOIO KB3X-01 macropad, right dial down key (F13; xkb maps it to XF86Tools, so bind by keycode)
 bind  = , code:191, exec, hyprwhspr record start
 bindr = , code:191, exec, hyprwhspr record stop
+# Voice to the pa agent: hold, speak, release -> today's voice chat in `tx rc`
+bind  = $mainMod, Z, exec, $HOME/.local/bin/voice-pa
+bindr = $mainMod, Z, exec, hyprwhspr record stop
+# DOIO KB3X-01 macropad, right dial right key (F14)
+bind  = , code:192, exec, $HOME/.local/bin/voice-pa
+bindr = , code:192, exec, hyprwhspr record stop
 
 
 ###############

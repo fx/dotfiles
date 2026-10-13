@@ -29,6 +29,7 @@ shared/
 .local/bin/audio-toggle
 .local/bin/volume-control
 .local/bin/ha-light
+.local/bin/voice-pa
 .local/bin/battlenet
 .local/share/applications/
 {{ end }}
