@@ -14,6 +14,9 @@
 # Correct - always use this:
 ./install.sh
 
+# Opt in to a full `pacman -Syu` as well (off by default):
+./install.sh --update
+
 # WRONG - never do this:
 chezmoi apply  # NO!
 ```

@@ -2,15 +2,44 @@
 set -e
 
 # Dotfiles installer script
-# Usage: curl -sSL fx.github.io/dotfiles/install.sh | sh -s -- [profile]
+# Usage: curl -sSL fx.github.io/dotfiles/install.sh | sh -s -- [profile] [options]
+#
+# Options:
+#   --update      - Also run a full system upgrade (pacman -Syu) before
+#                   installing packages. Off by default: only packages declared
+#                   in .chezmoidata/packages.yaml and still missing get installed.
+#   --no-update   - Explicitly skip the system upgrade (this is the default)
 #
 # Environment variables:
-#   DEBUG=1       - Show detailed error output when git fails
-#   FORCE_SSH=1   - Fail entirely if SSH doesn't work (no HTTPS fallback)
+#   DEBUG=1                 - Show detailed error output when git fails
+#   FORCE_SSH=1             - Fail entirely if SSH doesn't work (no HTTPS fallback)
+#   DOTFILES_UPDATE=1       - Same as --update
+#   DOTFILES_PROFILE=name   - Profile to use when none is given as an argument
+
+# Parse arguments
+PROFILE_ARG=""
+DO_UPDATE="${DOTFILES_UPDATE:-0}"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --update) DO_UPDATE=1 ;;
+        --no-update|--skip-update) DO_UPDATE=0 ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            echo "Usage: install.sh [profile] [--update]" >&2
+            exit 1
+            ;;
+        *) PROFILE_ARG="$1" ;;
+    esac
+    shift
+done
+
+# Read by .chezmoiscripts/run_onchange_after_install-arch-packages.sh, which
+# inherits this environment when chezmoi runs it.
+export DOTFILES_UPDATE="$DO_UPDATE"
 
 # Auto-detect profile if not specified
-if [ -n "$1" ]; then
-    PROFILE="$1"
+if [ -n "$PROFILE_ARG" ]; then
+    PROFILE="$PROFILE_ARG"
 elif [ -n "$DOTFILES_PROFILE" ]; then
     PROFILE="$DOTFILES_PROFILE"
 elif command -v hyprctl >/dev/null 2>&1; then
@@ -107,6 +136,9 @@ fi
 echo ""
 echo -e "${BOLD}🚀 Installing dotfiles${RESET}"
 echo -e "${BOLD}   Profile: ${CYAN}$PROFILE${RESET}"
+if [ "$DO_UPDATE" = "1" ]; then
+    echo -e "${BOLD}   System update: ${CYAN}enabled${RESET}"
+fi
 echo ""
 
 # Check if mise is installed

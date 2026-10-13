@@ -361,6 +361,29 @@ See `dot_config/opendeck/README.md` for encoder/button configuration details.
 
 ## Package Management (paru)
 
+### System upgrades during install
+
+`./install.sh` does **not** upgrade the system. It installs packages declared in
+`.chezmoidata/packages.yaml` that are missing, and leaves everything else alone.
+Opt in explicitly when you do want the upgrade:
+
+```bash
+./install.sh --update           # or: DOTFILES_UPDATE=1 ./install.sh
+./install.sh --no-update        # explicit form of the default
+```
+
+The flag is exported as `DOTFILES_UPDATE` and read by
+`.chezmoiscripts/run_onchange_after_install-arch-packages.sh`, which inherits
+install.sh's environment. It only matters on runs where that script actually
+executes — `run_onchange_` scripts run when their contents change, so an apply
+that changes nothing never upgrades either way.
+
+**The one caveat:** Arch does not support partial upgrades. Installing against a
+stale sync DB can pull a package built against newer libraries than the ones on
+disk. If an install fails with a missing target or a library mismatch, re-run
+with `--update` (or `sudo pacman -Syu` separately) and try again.
+
+
 ### `paru -Syu` fails: "breaks dependency ... required by lib32-*"
 
 **Symptom:**

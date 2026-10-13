@@ -13,9 +13,18 @@ if ! command -v paru >/dev/null 2>&1; then
     exit 0  # Don't fail install, just skip
 fi
 
-# Update system (pacman only, skip AUR to avoid long builds)
-echo "Updating system..."
-sudo pacman -Syu --noconfirm || echo "Warning: System update had issues, continuing..."
+# Full system upgrade, opt-in only (`./install.sh --update`, pacman only so
+# AUR rebuilds don't stall the run). Applying dotfiles should not drag in an
+# unrelated system upgrade, so the default is to leave the system alone.
+if [ "${DOTFILES_UPDATE:-0}" = "1" ]; then
+    echo "Updating system..."
+    sudo pacman -Syu --noconfirm || echo "Warning: System update had issues, continuing..."
+else
+    echo "Skipping system update (pass --update to install.sh to enable)"
+    echo "Note: packages are installed against the existing sync DB. Arch does"
+    echo "      not support partial upgrades, so re-run with --update if an"
+    echo "      install fails on a missing target or a library mismatch."
+fi
 
 # Collect missing packages
 missing_packages=""
