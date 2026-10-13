@@ -3,7 +3,7 @@
 # These keys override the existing file; backend, model, etc. stay as `hyprwhspr setup` wrote them.
 hyprwhspr:
   config:
-    # Hotkeys are Hyprland binds (hyprland.conf.tmpl), not hyprwhspr's own evdev listener
+    # Hotkeys are Hyprland binds (hyprland.lua.tmpl), not hyprwhspr's own evdev listener
     use_hypr_bindings: true
     # Press Enter after pasting the transcription
     auto_submit: true

@@ -10,7 +10,7 @@ get_current_scale() {
 
 set_scale() {
     local scale=$1
-    hyprctl keyword monitor eDP-1,preferred,auto,"$scale" >/dev/null
+    hyprctl eval "hl.monitor({ output = \"eDP-1\", mode = \"preferred\", position = \"auto\", scale = $scale })" >/dev/null
 }
 
 show_menu() {

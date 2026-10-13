@@ -42,14 +42,19 @@ export wine_path="/home/<user>/Games/star-citizen/runners/lug-wine-tkg-staging-e
 
 ### 5. Hyprland window rules
 
-Already in `dot_config/hypr/hyprland.conf.tmpl`:
+Already in `dot_config/hypr/hyprland.lua.tmpl`:
 
-```
-windowrule = monitor DP-6, match:class starcitizen.exe
-windowrule = fullscreen 2, match:class starcitizen.exe
-windowrule = immediate true, match:class starcitizen.exe
-windowrule = monitor DP-6, match:class rsi launcher.exe
-windowrule = float yes, match:class rsi launcher.exe
+```lua
+hl.window_rule({
+    name  = "star-citizen",
+    match = { class = "starcitizen.exe" },
+    monitor = "DP-6", fullscreen = true, immediate = true,
+})
+hl.window_rule({
+    name  = "rsi-launcher",
+    match = { class = "rsi launcher.exe" },
+    monitor = "DP-6", float = true,
+})
 ```
 
 Without these, Hyprland **tiles** the SC window, fighting SC's exclusive-fullscreen request. The swapchain bounces between 4K and ~1700×1000 (`VK_SUBOPTIMAL_KHR` repeatedly in `sc-launch.log`). Cursor coords lock to whichever sub-resolution the surface settled at last — exactly the "constrained to a smaller area" symptom.

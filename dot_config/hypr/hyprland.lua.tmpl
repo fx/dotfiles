@@ -1,0 +1,325 @@
+{{ if .is_desktop -}}
+-- Hyprland configuration
+-- Managed by dotfiles - https://wiki.hypr.land/Configuring/Start/
+-- API stubs for editor completion: /usr/share/hypr/stubs/hl.meta.lua
+{{- $nvidia := output "sh" "-c" "lspci 2>/dev/null | grep -qi nvidia && echo nvidia || echo other" | trim | eq "nvidia" }}
+
+------------------
+---- MONITORS ----
+------------------
+
+-- Machine-specific monitors live in local.lua (required at the bottom)
+-- Laptop panel; hypr-scale changes the scale at runtime
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 1 })
+
+
+---------------------
+---- MY PROGRAMS ----
+---------------------
+
+local terminal = "ghostty"
+local menu     = "rofi -show drun -show-icons"
+
+
+-------------------
+---- AUTOSTART ----
+-------------------
+
+hl.on("hyprland.start", function()
+    hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
+    hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
+    hl.exec_cmd("systemctl --user restart xdg-desktop-portal.service")
+    hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
+    hl.exec_cmd("waybar")
+    hl.exec_cmd("~/.config/waybar/scripts/notifications.sh --listen")
+    hl.exec_cmd("discord --start-minimized")
+    hl.exec_cmd("1password --silent")
+    hl.exec_cmd("opendeck")
+    hl.exec_cmd("monitor-check")
+{{- if $nvidia }}
+    hl.exec_cmd("flatpak-nvidia-sync")
+{{- end }}
+    hl.exec_cmd("xrandr --output DP-6 --primary")
+    hl.exec_cmd("wl-paste --type text --watch cliphist store")
+    hl.exec_cmd("wl-paste --type image --watch cliphist store")
+    -- hyprwhspr speech-to-text daemon (no uwsm, so graphical-session.target never activates)
+    hl.exec_cmd("systemctl --user start hyprwhspr")
+end)
+
+
+-------------------------------
+---- ENVIRONMENT VARIABLES ----
+-------------------------------
+
+hl.env("XCURSOR_SIZE", "24")
+hl.env("HYPRCURSOR_SIZE", "24")
+
+-- Electron/Chromium apps - use native Wayland with explicit sync
+hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
+
+-- Dark mode preference
+hl.env("GTK_THEME", "Adwaita:dark")
+hl.env("QT_QPA_PLATFORMTHEME", "qt5ct")
+{{- if $nvidia }}
+
+-- NVIDIA GPU - required for Hyprland to launch
+hl.env("LIBVA_DRIVER_NAME", "nvidia")
+hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+-- egl backend: the newer `direct` backend crashes Chrome's GPU process during
+-- VA-API video decode (browser "freaks out" on videos). egl is slower but stable.
+hl.env("NVD_BACKEND", "egl")
+-- Hide the AMD iGPU's Vulkan ICD so apps don't default to it.
+-- Zen 5 desktop CPUs (e.g. 9850X3D) ship a 2-CU RDNA2 iGPU that the Vulkan
+-- loader enumerates as device 0 — Chrome/games render on it instead of the
+-- dGPU, causing stutter and low FPS. No-op on pure-NVIDIA systems.
+hl.env("VK_LOADER_DRIVERS_DISABLE", "*radeon*")
+{{- end }}
+
+
+-----------------------
+---- LOOK AND FEEL ----
+-----------------------
+
+hl.config({
+    general = {
+        gaps_in          = 5,
+        gaps_out         = 10,
+        border_size      = 2,
+        col = {
+            active_border   = { colors = { "rgba(e78a4eee)", "rgba(ea6962ee)" }, angle = 45 },
+            inactive_border = "rgba(282828aa)",
+        },
+        resize_on_border = false,
+        allow_tearing    = true,
+        layout           = "dwindle",
+    },
+
+    decoration = {
+        rounding         = 0,
+        active_opacity   = 1.0,
+        inactive_opacity = 1.0,
+        shadow = { enabled = false },
+        blur   = { enabled = false },
+    },
+
+    animations = { enabled = true },
+
+    dwindle = { preserve_split = true },
+    master  = { new_status = "master" },
+
+    misc = {
+        force_default_wallpaper = 0,
+        disable_hyprland_logo   = true,
+        render_unfocused_fps    = 120, -- Keep unfocused windows rendering at 120fps
+    },
+
+    render = {
+        direct_scanout = 0, -- Disable direct scanout (can cause issues when switching workspaces)
+    },
+
+    cursor = {
+        use_cpu_buffer = true, -- Render cursor via CPU DRM dumb buffers (fixes EGL blit failure on nvidia-open)
+    },
+
+    input = {
+        kb_layout    = "us",
+        follow_mouse = 1,
+        sensitivity  = 0,
+        touchpad = { natural_scroll = false },
+    },
+})
+
+hl.curve("easeOutQuint",   { type = "bezier", points = { { 0.23, 1 },    { 0.32, 1 } } })
+hl.curve("easeInOutCubic", { type = "bezier", points = { { 0.65, 0.05 }, { 0.36, 1 } } })
+hl.curve("linear",         { type = "bezier", points = { { 0, 0 },       { 1, 1 } } })
+hl.curve("almostLinear",   { type = "bezier", points = { { 0.5, 0.5 },   { 0.75, 1 } } })
+hl.curve("quick",          { type = "bezier", points = { { 0.15, 0 },    { 0.1, 1 } } })
+
+hl.animation({ leaf = "global",        enabled = true, speed = 10,   bezier = "default" })
+hl.animation({ leaf = "border",        enabled = true, speed = 5.39, bezier = "easeOutQuint" })
+hl.animation({ leaf = "windows",       enabled = true, speed = 4.79, bezier = "easeOutQuint" })
+hl.animation({ leaf = "windowsIn",     enabled = true, speed = 4.1,  bezier = "easeOutQuint", style = "popin 87%" })
+hl.animation({ leaf = "windowsOut",    enabled = true, speed = 1.49, bezier = "linear",       style = "popin 87%" })
+hl.animation({ leaf = "fadeIn",        enabled = true, speed = 1.73, bezier = "almostLinear" })
+hl.animation({ leaf = "fadeOut",       enabled = true, speed = 1.46, bezier = "almostLinear" })
+hl.animation({ leaf = "fade",          enabled = true, speed = 3.03, bezier = "quick" })
+hl.animation({ leaf = "layers",        enabled = true, speed = 3.81, bezier = "easeOutQuint" })
+hl.animation({ leaf = "layersIn",      enabled = true, speed = 4,    bezier = "easeOutQuint", style = "fade" })
+hl.animation({ leaf = "layersOut",     enabled = true, speed = 1.5,  bezier = "linear",       style = "fade" })
+hl.animation({ leaf = "fadeLayersIn",  enabled = true, speed = 1.79, bezier = "almostLinear" })
+hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
+hl.animation({ leaf = "workspaces",    enabled = true, speed = 1.94, bezier = "almostLinear", style = "fade" })
+
+
+---------------------
+---- KEYBINDINGS ----
+---------------------
+
+local mainMod = "ALT"
+
+local function key(k) return mainMod .. " + " .. k end
+
+-- Core
+hl.bind(key("Return"), hl.dsp.exec_cmd(terminal))
+hl.bind(key("Q"),      hl.dsp.window.close())
+hl.bind(key("L"),      hl.dsp.exec_cmd("hyprlock"))
+hl.bind(key("E"),      hl.dsp.exec_cmd("$HOME/.local/share/mise/shims/tx rc pick"))
+hl.bind(key("V"),      hl.dsp.window.float({ action = "toggle" }))
+hl.bind(key("D"),      hl.dsp.exec_cmd(menu))
+hl.bind(key("P"),      hl.dsp.window.pseudo())
+hl.bind(key("T"),      hl.dsp.layout("togglesplit"))
+hl.bind(key("F"),      hl.dsp.window.fullscreen())
+
+for _, dir in ipairs({ "left", "right", "up", "down" }) do
+    -- Move focus with mainMod + arrow keys
+    hl.bind(key(dir),             hl.dsp.focus({ direction = dir }))
+    -- Move windows with mainMod + SHIFT + arrow keys
+    hl.bind(key("SHIFT + " .. dir), hl.dsp.window.move({ direction = dir }))
+end
+
+-- Move window to other monitor
+hl.bind(key("comma"),  hl.dsp.window.move({ monitor = "-1" }))
+hl.bind(key("period"), hl.dsp.window.move({ monitor = "+1" }))
+
+-- Resize windows
+hl.bind(key("CTRL + left"),  hl.dsp.window.resize({ x = -40, y = 0,   relative = true }), { repeating = true })
+hl.bind(key("CTRL + right"), hl.dsp.window.resize({ x = 40,  y = 0,   relative = true }), { repeating = true })
+hl.bind(key("CTRL + up"),    hl.dsp.window.resize({ x = 0,   y = -40, relative = true }), { repeating = true })
+hl.bind(key("CTRL + down"),  hl.dsp.window.resize({ x = 0,   y = 40,  relative = true }), { repeating = true })
+
+-- Switch workspaces with mainMod + [0-9]
+-- Move active window to a workspace with mainMod + SHIFT + [0-9]
+for i = 1, 10 do
+    local k = tostring(i % 10)
+    hl.bind(key(k),              hl.dsp.focus({ workspace = i }))
+    hl.bind(key("SHIFT + " .. k), hl.dsp.window.move({ workspace = i }))
+end
+
+-- Special workspace (scratchpad)
+hl.bind(key("S"),         hl.dsp.workspace.toggle_special("magic"))
+hl.bind(key("SHIFT + S"), hl.dsp.window.move({ workspace = "special:magic" }))
+
+-- Scroll through existing workspaces
+hl.bind(key("mouse_down"), hl.dsp.focus({ workspace = "e+1" }))
+hl.bind(key("mouse_up"),   hl.dsp.focus({ workspace = "e-1" }))
+
+-- Move/resize windows with mainMod + LMB/RMB
+hl.bind(key("mouse:272"), hl.dsp.window.drag(),   { mouse = true })
+hl.bind(key("mouse:273"), hl.dsp.window.resize(), { mouse = true })
+
+-- Screenshots (hyprshot) - saves to ~/Pictures/Screenshots and copies to clipboard
+hl.bind("CTRL + SHIFT + 3", hl.dsp.exec_cmd("hyprshot -m region -o ~/Pictures/Screenshots"))
+hl.bind("CTRL + SHIFT + 4", hl.dsp.exec_cmd([[mkdir -p ~/Pictures/Screenshots && f=~/Pictures/Screenshots/$(date +%Y-%m-%d-%H%M%S)_screenshot.png && grim -o "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" "$f" && wl-copy < "$f"]]))
+
+-- Media keys (also bound inside the game submap)
+local function mediaBinds(full)
+    hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
+    hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
+    hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true, repeating = true })
+    if not full then return end
+    hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"), { locked = true, repeating = true })
+    hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"),                { locked = true, repeating = true })
+    hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"),                { locked = true, repeating = true })
+    hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })
+    hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
+    hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
+    hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+end
+mediaBinds(true)
+
+-- Hold-to-talk: press starts, release stops
+local function holdBind(keys, start, stop)
+    hl.bind(keys, hl.dsp.exec_cmd(start))
+    hl.bind(keys, hl.dsp.exec_cmd(stop), { release = true })
+end
+
+-- Dictation (hyprwhspr): hold, speak, release -> pasted into the focused window + Enter
+holdBind(key("A"), "hyprwhspr record start", "hyprwhspr record stop")
+-- DOIO KB3X-01 macropad, right dial down key (F13; xkb maps it to XF86Tools, so bind by keycode)
+holdBind("code:191", "hyprwhspr record start", "hyprwhspr record stop")
+-- Voice to the pa agent: hold, speak, release -> today's voice chat in `tx rc`
+holdBind(key("Z"), "$HOME/.local/bin/voice-pa", "hyprwhspr record stop")
+-- DOIO KB3X-01 macropad, right dial right key (F14)
+holdBind("code:192", "$HOME/.local/bin/voice-pa", "hyprwhspr record stop")
+
+
+------------------
+---- GAMEMODE ----
+------------------
+
+-- Toggle game mode: disables most keybinds
+hl.bind(key("G"), hl.dsp.submap("game"))
+
+hl.define_submap("game", function()
+    -- Only essential binds in game mode
+    hl.bind(key("G"), hl.dsp.submap("reset"))
+    hl.bind(key("Q"), hl.dsp.window.close())
+    hl.bind(key("F"), hl.dsp.window.fullscreen())
+    -- Media keys still work
+    mediaBinds(false)
+end)
+
+
+--------------------------------
+---- WINDOWS AND WORKSPACES ----
+--------------------------------
+
+hl.window_rule({
+    name  = "suppress-maximize-events",
+    match = { class = ".*" },
+    suppress_event = "maximize",
+})
+
+hl.window_rule({
+    name  = "fix-xwayland-drags",
+    match = { class = "^$", title = "^$", xwayland = true, float = true, fullscreen = false, pin = false },
+    no_focus = true,
+})
+
+-- Start OpenDeck minimized (send to special workspace)
+hl.window_rule({
+    name  = "opendeck-minimized",
+    match = { class = "opendeck", title = "OpenDeck" },
+    workspace = "special:minimized silent",
+})
+
+-- Gaming - enable immediate mode (tearing) for better frame pacing.
+-- Moonlight (game streaming client) too, for low latency.
+for _, class in ipairs({
+    "steam_app_.*", "steam_proton_.*", "Battle.net.exe", "Wow.exe", "WowClassic.exe",
+    "com.moonlight_stream.Moonlight",
+}) do
+    hl.window_rule({ match = { class = class }, immediate = true })
+end
+
+-- Star Citizen + RSI Launcher: pin to gaming monitor, fullscreen the game,
+-- float (don't tile) the launcher. Hyprland tiling fights SC's swapchain
+-- (1712x1004 ↔ 3840x2160 thrash) and causes cursor offset under wayland-wine.
+hl.window_rule({
+    name  = "star-citizen",
+    match = { class = "starcitizen.exe" },
+    monitor = "DP-6", fullscreen = true, immediate = true,
+})
+hl.window_rule({
+    name  = "rsi-launcher",
+    match = { class = "rsi launcher.exe" },
+    monitor = "DP-6", float = true,
+})
+
+-- Stellaris (Steam App 281990): same tiling-vs-fullscreen fight as SC.
+-- float prevents Hyprland tiling from constraining the resolution envelope;
+-- monitor pins it to the 4K display so the game sees the right resolution list.
+hl.window_rule({
+    name  = "stellaris",
+    match = { class = "steam_app_281990" },
+    monitor = "DP-6", float = true,
+})
+
+
+-------------------------
+---- LOCAL OVERRIDES ----
+-------------------------
+
+-- Machine-specific config (~/.config/hypr/local.lua, not managed by dotfiles)
+require("local")
+{{ end -}}

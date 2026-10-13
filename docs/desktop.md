@@ -4,9 +4,11 @@ This document covers desktop-specific configuration, troubleshooting, and gaming
 
 ## Hyprland Configuration
 
-Config location: `dot_config/hypr/hyprland.conf.tmpl`
+Config location: `dot_config/hypr/hyprland.lua.tmpl` (Lua config; hyprlang `hyprland.conf` is deprecated since 0.55). API stubs: `/usr/share/hypr/stubs/hl.meta.lua`. Check a rendered config with `Hyprland --verify-config -c <file>`.
 
-Machine-specific overrides (monitors, VRR) go in `~/.config/hypr/local.conf` (not managed by dotfiles).
+Machine-specific overrides (monitors, VRR) go in `~/.config/hypr/local.lua` (not managed by dotfiles), loaded via `require("local")`.
+
+Runtime changes use `hyprctl eval '<lua>'` — `hyprctl keyword` is legacy-only, and `hyprctl dispatch` takes Lua (`hyprctl dispatch 'hl.dsp.window.close()'`).
 
 ### Dark Mode
 
@@ -24,43 +26,34 @@ Applications like Zed query the XDG Desktop Portal to detect the system color sc
    org.freedesktop.impl.portal.Settings=hyprland
    ```
 
-3. **Environment Variables** (in `hyprland.conf`):
-   ```
-   env = GTK_THEME,Adwaita:dark
-   env = QT_QPA_PLATFORMTHEME,qt5ct
+3. **Environment Variables** (in `hyprland.lua`):
+   ```lua
+   hl.env("GTK_THEME", "Adwaita:dark")
+   hl.env("QT_QPA_PLATFORMTHEME", "qt5ct")
    ```
 
-4. **Autostart** (in `hyprland.conf`):
-   ```
-   exec-once = gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
-   exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
-   exec-once = systemctl --user restart xdg-desktop-portal.service
+4. **Autostart** (in `hyprland.lua`'s `hl.on("hyprland.start", ...)`):
+   ```lua
+   hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
+   hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
+   hl.exec_cmd("systemctl --user restart xdg-desktop-portal.service")
    ```
 
 Applications should now correctly detect dark mode via the portal's Settings interface.
 
 ### Key Settings
 
-**Rendering (misc section):**
-```
-misc {
-    vfr = false                  # Always render every frame
-    render_unfocused_fps = 120   # Keep unfocused windows rendering
-}
-```
-
-**Render section:**
-```
-render {
-    direct_scanout = 0           # Disabled - can cause issues with NVIDIA
-}
+**Rendering:**
+```lua
+hl.config({
+    misc   = { render_unfocused_fps = 120 }, -- Keep unfocused windows rendering
+    render = { direct_scanout = 0 },         -- Disabled - can cause issues with NVIDIA
+})
 ```
 
-**Gaming window rules:**
-```
-windowrule = immediate true, match:class steam_app_.*
-windowrule = immediate true, match:class Battle.net.exe
-windowrule = immediate true, match:class Wow.exe
+**Gaming window rules** (one rule per class: `steam_app_.*`, `Battle.net.exe`, `Wow.exe`, ...):
+```lua
+hl.window_rule({ match = { class = "steam_app_.*" }, immediate = true })
 ```
 
 The `immediate` rule enables tearing for better frame pacing in games.
@@ -70,17 +63,17 @@ The `immediate` rule enables tearing for better frame pacing in games.
 If a game can't select 4K or ignores the monitor resolution after going fullscreen, the cause is Hyprland tiling the game window — the tiled size caps what the game sees as available resolution, and the swapchain thrashes between the tiled dimensions and the requested fullscreen size.
 
 **Fix:** add per-game window rules to float the window and pin it to the gaming monitor:
-```
-windowrule = monitor DP-6, match:class steam_app_<APPID>
-windowrule = float yes, match:class steam_app_<APPID>
+```lua
+hl.window_rule({
+    name  = "my-game",
+    match = { class = "steam_app_<APPID>" },
+    monitor = "DP-6", float = true,
+})
 ```
 
 Replace `DP-6` with your gaming monitor name (`hyprctl monitors` to check) and `<APPID>` with the Steam App ID (visible in the store URL).
 
-If the game uses exclusive fullscreen and still misbehaves, also add:
-```
-windowrule = fullscreen 2, match:class steam_app_<APPID>
-```
+If the game uses exclusive fullscreen and still misbehaves, also add `fullscreen = true` to the rule.
 
 **XWayland primary monitor:** The autostart includes `xrandr --output DP-6 --primary` so XWayland games default to the 4K monitor. If you change which monitor is primary, update this line.
 
@@ -167,11 +160,11 @@ WoW with `GxApi "D3D12"` uses vkd3d-proton. Environment variables prefixed with 
 
 ### Hyprland Environment Variables
 
-Set in `hyprland.conf.tmpl`:
-```
-env = LIBVA_DRIVER_NAME,nvidia
-env = __GLX_VENDOR_LIBRARY_NAME,nvidia
-env = NVD_BACKEND,egl
+Set in `hyprland.lua.tmpl`:
+```lua
+hl.env("LIBVA_DRIVER_NAME", "nvidia")
+hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+hl.env("NVD_BACKEND", "egl")
 ```
 
 ### Chrome GPU process crashes during video playback ("freaks out" on videos)
@@ -188,7 +181,7 @@ strings <newest>.dmp | grep -iE "gpu-process|VaapiVideoDecoder"   # confirms GPU
 
 **Don't** just disable HW decode (`chrome://flags` → "Hardware-accelerated video decode" → Disabled): it stops the crashes but forces CPU software decode, which lags badly at 4K/high-refresh.
 
-**Fix:** Switch the NVDEC VA-API driver to its `egl` backend (slower than `direct` but stable in Chrome): set `env = NVD_BACKEND,egl` in `hyprland.conf.tmpl`, `./install.sh`, then re-login. Keep Chrome's HW decode **enabled**. Verify the backend with `vainfo` (should read `[egl backend]`).
+**Fix:** Switch the NVDEC VA-API driver to its `egl` backend (slower than `direct` but stable in Chrome): set `hl.env("NVD_BACKEND", "egl")` in `hyprland.lua.tmpl`, `./install.sh`, then re-login. Keep Chrome's HW decode **enabled**. Verify the backend with `vainfo` (should read `[egl backend]`).
 
 ### WirePlumber NVIDIA Audio
 
@@ -229,9 +222,9 @@ Then fully quit and relaunch the Flatpak (no reboot needed). `flatpak remote-ls 
 vulkaninfo --summary | grep deviceName   # iGPU listed first = problem
 ```
 
-**Fix:** Hide the AMD Vulkan ICD so only the dGPU is visible. Set in the NVIDIA env block of `hyprland.conf.tmpl`:
-```
-env = VK_LOADER_DRIVERS_DISABLE,*radeon*
+**Fix:** Hide the AMD Vulkan ICD so only the dGPU is visible. Set in the NVIDIA env block of `hyprland.lua.tmpl`:
+```lua
+hl.env("VK_LOADER_DRIVERS_DISABLE", "*radeon*")
 ```
 The Vulkan loader does the glob matching itself (not the shell). No-op on pure-NVIDIA systems where no radeon ICD exists. Takes effect after `./install.sh` + a fresh Hyprland session (re-login).
 
@@ -360,11 +353,11 @@ See `dot_config/opendeck/README.md` for encoder/button configuration details.
 
 ## Dictation (hyprwhspr)
 
-[hyprwhspr](https://github.com/goodroot/hyprwhspr) (AUR) does local Whisper speech-to-text. Hold **Alt+A** (or F13, the DOIO macropad's right-dial down key), speak, release: the text is pasted into the focused window and Enter is pressed.
+[hyprwhspr](https://github.com/goodroot/hyprwhspr) (AUR) does local Whisper speech-to-text. Hold **Alt+A** (or F13, the DOIO macropad's right-dial down key), speak, release: the text is pasted into the focused window and Enter is pressed. **Alt+Z** (or F14) sends the transcription to today's voice chat with the `pa` agent in `tx rc` instead (`~/.local/bin/voice-pa`).
 
-- **One-time setup:** `hyprwhspr setup` picks the backend/model and installs the `hyprwhspr.service` user unit. Hyprland starts it via `exec-once`.
+- **One-time setup:** `hyprwhspr setup` picks the backend/model and installs the `hyprwhspr.service` user unit. Hyprland starts it on `hyprland.start`.
 - **Config:** `.chezmoidata/hyprwhspr.yaml` keys are merged into `~/.config/hyprwhspr/config.json` (`use_hypr_bindings`, `auto_submit`); everything else is left as setup wrote it.
-- **Release binds need the modifier still held.** `bindr = $mainMod, A` only fires if Alt is down when A comes up — release A first, or recording keeps running (`hyprwhspr record stop` ends it). Devices that release modifier and key in one report (the DOIO pad) need modifier-less keys.
+- **Release binds need the modifier still held.** The `{ release = true }` bind on Alt+A only fires if Alt is down when A comes up — release A first, or recording keeps running (`hyprwhspr record stop` ends it). Devices that release modifier and key in one report (the DOIO pad) need modifier-less keys.
 
 ## Package Management (paru)
 

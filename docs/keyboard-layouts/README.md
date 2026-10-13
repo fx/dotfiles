@@ -23,13 +23,13 @@ curl -sL https://raw.githubusercontent.com/the-via/keyboards/master/v3/doio/kb3x
 
 QMK's layout (and VIA's definition) shows each cluster's left and right keys swapped: the physical left key is matrix column 1, the right key column 3.
 
-The firmware releases modifiers and key in a single HID report, and the kernel emits the modifier releases first. Hyprland `bindr` binds with modifiers (e.g. `SUPER ALT, D`) therefore never fire from the pad — use plain keys like F13+ for hold-to-talk.
+The firmware releases modifiers and key in a single HID report, and the kernel emits the modifier releases first. Hyprland release binds with modifiers (e.g. `SUPER + ALT + D`) therefore never fire from the pad — use plain keys like F13+ for hold-to-talk.
 
 Custom mappings (layer 0):
 
 | Key | Keycode | Purpose |
 |-----|---------|---------|
-| Right dial, down | `KC_F13` (xkb `code:191`) | Hold-to-talk dictation (hyprwhspr), bound in `hyprland.conf.tmpl` |
-| Right dial, right | `KC_F14` (xkb `code:192`) | Machine-local bind in `~/.config/hypr/local.conf` |
+| Right dial, down | `KC_F13` (xkb `code:191`) | Hold-to-talk dictation (hyprwhspr), bound in `hyprland.lua.tmpl` |
+| Right dial, right | `KC_F14` (xkb `code:192`) | Hold-to-talk to the `pa` agent (`voice-pa`), bound in `hyprland.lua.tmpl` |
 
 Bind by keycode — xkb maps F13/F14 to `XF86Tools`/`XF86Launch5`, not `F13`/`F14`.
