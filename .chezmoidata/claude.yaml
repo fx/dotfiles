@@ -12,10 +12,6 @@
 
 marketplace:
   extraKnownMarketplaces:
-    fx-cc:
-      source:
-        source: git
-        url: git@github.com:fx/cc.git
     anthropic-agent-skills:
       source:
         source: github
@@ -31,8 +27,3 @@ settings:
   tui: fullscreen
   # Don't accumulate unsent feedback drafts.
   feedbackDrafts: "off"
-  enabledPlugins:
-    fx-dev@fx-cc: true
-    fx-research@fx-cc: true
-    fx-meta@fx-cc: true
-    release-please@fx-cc: true
