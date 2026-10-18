@@ -7,13 +7,8 @@ if [ ! -f "$HOME/.claude/settings.json" ]; then
     exit 1
 fi
 
-if ! grep -q "fx-cc" "$HOME/.claude/settings.json"; then
-    echo "✗ fx/cc marketplace not configured"
-    exit 1
-fi
-
-if ! grep -q "git@github.com:fx/cc.git" "$HOME/.claude/settings.json"; then
-    echo "✗ Marketplace not using git SSH source"
+if ! grep -q "anthropic-agent-skills" "$HOME/.claude/settings.json"; then
+    echo "✗ Claude marketplace not configured"
     exit 1
 fi
 

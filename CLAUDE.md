@@ -137,113 +137,14 @@ Visit https://github.com/settings/tokens/new and create a Personal Access Token 
 - Never commit GitHub tokens to any repository
 - The template files contain placeholders that MUST be replaced with your actual credentials
 
-## Claude Code Marketplace
+## Claude Code Settings
 
-Claude Code plugins, skills, and agents are distributed via the `fx/cc` marketplace repository. The dotfiles automatically configure this marketplace for development.
+`.chezmoidata/claude.yaml` holds the Claude Code settings the dotfiles enforce.
+`.chezmoiscripts/run_onchange_after_update-claude-settings.sh.tmpl` jq-merges them
+into `~/.claude/settings.json` (or creates it), preserving every other user setting.
 
-### How It Works
-
-1. **Automatic Configuration**: Dotfiles configure `fx/cc` marketplace via `~/.claude/settings.json`:
-   - Marketplace configuration is stored in `.chezmoidata/claude.yaml`
-   - A `modify_` script merges this config into existing settings.json (or creates it if missing)
-   - User settings are preserved; only marketplace config and required settings are enforced
-   - Uses chezmoi's template system with `jq` for JSON merging
-
-   Example configuration:
-   ```json
-   {
-     "extraKnownMarketplaces": {
-       "fx-cc": {
-         "source": {
-           "source": "git",
-           "url": "git@github.com:fx/cc.git"
-         }
-       }
-     }
-   }
-   ```
-
-2. **Auto-Clone**: When you trust the workspace, Claude Code automatically clones the repository via SSH to:
-   - `~/.claude/plugins/marketplaces/fx-cc/`
-   - Full git repository with SSH remote
-   - Ready for development (commit, push, etc.)
-
-3. **Plugin Discovery**: Use `/plugin marketplace list` to see available plugins
-
-4. **Installation**: Install desired plugins:
-   ```bash
-   /plugin install fx-dev     # Development agents and commands
-   /plugin install fx-test    # Test plugin
-   ```
-
-### Available Plugins
-
-Visit [https://cc.fx.gd](https://cc.fx.gd) or check `~/.claude/plugins/marketplaces/fx-cc/` to see available plugins.
-
-### Development Workflow
-
-**Making changes to plugins:**
-```bash
-# Navigate to the marketplace repository
-cd ~/.claude/plugins/marketplaces/fx-cc
-
-# Make changes to plugins
-vim plugins/fx-dev/agents/coder.md
-
-# Commit and push
-git add .
-git commit -m "feat(fx-dev): improve coder agent"
-git push
-```
-
-**Creating a new plugin:**
-```bash
-cd ~/.claude/plugins/marketplaces/fx-cc
-
-# Create plugin structure
-mkdir -p plugins/my-plugin/{.claude-plugin,agents,skills}
-cd plugins/my-plugin
-
-# Create manifest
-cat > .claude-plugin/plugin.json <<EOF
-{
-  "name": "my-plugin",
-  "version": "0.1.0",
-  "description": "My custom plugin"
-}
-EOF
-
-# Add your agents/skills/commands
-# ...
-
-# Update marketplace.json
-cd ../..
-vim .claude-plugin/marketplace.json
-
-# Commit and push
-git add .
-git commit -m "feat: add my-plugin"
-git push
-```
-
-**Testing changes:**
-- Changes are immediately available to Claude Code
-- Reload Claude Code window to pick up changes
-- Use `/plugin update fx-cc` to refresh marketplace
-
-### Updates
-
-Claude Code automatically manages marketplace updates. The repository in `~/.claude/plugins/marketplaces/fx-cc/` is a full git repository, so you can:
-- Pull updates: `cd ~/.claude/plugins/marketplaces/fx-cc && git pull`
-- Switch branches for testing
-- Make local changes and push upstream
-
-### Security Notes
-
-- SSH clone requires GitHub SSH key authentication
-- Uses existing gh CLI authentication for SSH keys
-- Repository is owned by you and fully under your control
-- Never commit sensitive data to plugin repositories
+The merge only adds and overwrites keys. Removing a key from `claude.yaml` does
+not remove it from an existing `settings.json` — delete it there by hand.
 
 ## Home Assistant Integration (Desktop Profile)
 
