@@ -7,7 +7,8 @@ if [ ! -f "$HOME/.claude/settings.json" ]; then
     exit 1
 fi
 
-if ! grep -q "anthropic-agent-skills" "$HOME/.claude/settings.json"; then
+if ! jq -e '.extraKnownMarketplaces["anthropic-agent-skills"].source.repo == "anthropics/skills"' \
+        "$HOME/.claude/settings.json" >/dev/null; then
     echo "✗ Claude marketplace not configured"
     exit 1
 fi
