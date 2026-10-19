@@ -1,0 +1,54 @@
+#!/bin/bash
+# Install the fx/skills agent skills for Claude Code, Codex and pi with the
+# `skills` CLI (https://github.com/vercel-labs/skills).
+#
+# run_after_, not run_onchange_: the script never changes when fx/skills does,
+# and `skills add` is what picks up new and changed skills (~1 s when nothing
+# changed). It does not prune — a skill removed from fx/skills stays until
+# `npx skills@1.7.2 remove -g <name>`.
+#
+# The CLI does all the placing itself: skill content goes to ~/.agents/skills,
+# which Codex and pi read directly, and Claude Code gets a symlink per skill in
+# ~/.claude/skills. Never fails the apply — skills are not worth the rest of it.
+
+{{ if .include_defaults -}}
+
+# ---------------------------------------------------------------------------
+# Coder: keep the store in /shared so it survives rebuilds. ~/.agents links to
+# the node-wide /shared/agents, and so does $SHARED_HOME/.agents — the CLI's
+# Claude Code links are RELATIVE (../../.agents/skills/<name>), so they resolve
+# both from a container-local ~/.claude and from a copy of it in $SHARED_HOME.
+if [ "$CODER" = "true" ]; then
+    SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home/default}"
+    AGENTS_SHARED="/shared/agents"
+    if mkdir -p "$AGENTS_SHARED/skills" "$SHARED_HOME" 2>/dev/null; then
+        if [ -L "$SHARED_HOME/.agents" ] || [ ! -e "$SHARED_HOME/.agents" ]; then
+            ln -sfn "$AGENTS_SHARED" "$SHARED_HOME/.agents"
+        else
+            echo "⚠️  $SHARED_HOME/.agents is a real directory, not a link to $AGENTS_SHARED — left alone"
+        fi
+        if [ -e "$HOME/.agents" ] && [ ! -L "$HOME/.agents" ]; then
+            cp -an "$HOME/.agents/." "$AGENTS_SHARED/" 2>/dev/null || true
+            rm -rf "$HOME/.agents"
+        fi
+        ln -sfn "$AGENTS_SHARED" "$HOME/.agents"
+    else
+        echo "⚠️  $AGENTS_SHARED is not writable — ~/.agents stays container-local"
+    fi
+fi
+
+# npx comes from mise's node, whose shims are not necessarily on PATH here.
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+if ! command -v npx >/dev/null 2>&1; then
+    echo "⚠️  npx not found, skipping fx/skills"
+    exit 0
+fi
+
+if out="$(DO_NOT_TRACK=1 DISABLE_TELEMETRY=1 npx -y skills@1.7.2 add fx/skills \
+        --global --skill '*' --agent claude-code codex pi -y 2>&1)"; then
+    echo "✓ fx/skills installed"
+else
+    echo "⚠️  fx/skills install failed"
+    echo "$out" | tail -20
+fi
+{{ end -}}
