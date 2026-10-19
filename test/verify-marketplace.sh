@@ -16,7 +16,7 @@ fi
 echo "✓ Claude marketplace configured correctly"
 
 # fx/skills: content in ~/.agents/skills, a resolving link per skill in ~/.claude/skills.
-if [ ! -e "$HOME/.claude/skills/dev/SKILL.md" ]; then
+if ! compgen -G "$HOME/.claude/skills/*/SKILL.md" >/dev/null; then
     echo "✗ fx/skills not installed for Claude Code"
     exit 1
 fi

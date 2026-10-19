@@ -153,7 +153,7 @@ not remove it from an existing `settings.json` — delete it there by hand.
 [`skills`](https://github.com/vercel-labs/skills) CLI on every apply. The CLI places
 everything: content in `~/.agents/skills` (read directly by Codex and pi), one
 symlink per skill in `~/.claude/skills`. It never prunes — remove a skill dropped
-from fx/skills with `npx skills remove -g <name>`.
+from fx/skills with `npx skills@1.7.2 remove -g <name>`.
 
 In Coder, `~/.agents` and `$DOTFILES_SHARED_HOME/.agents` both link to
 `/shared/agents`, so the store survives rebuilds and the CLI's relative links

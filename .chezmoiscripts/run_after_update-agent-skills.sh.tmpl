@@ -5,7 +5,7 @@
 # run_after_, not run_onchange_: the script never changes when fx/skills does,
 # and `skills add` is what picks up new and changed skills (~1 s when nothing
 # changed). It does not prune — a skill removed from fx/skills stays until
-# `npx skills remove -g <name>`.
+# `npx skills@1.7.2 remove -g <name>`.
 #
 # The CLI does all the placing itself: skill content goes to ~/.agents/skills,
 # which Codex and pi read directly, and Claude Code gets a symlink per skill in
@@ -22,7 +22,11 @@ if [ "$CODER" = "true" ]; then
     SHARED_HOME="${DOTFILES_SHARED_HOME:-/shared/home/default}"
     AGENTS_SHARED="/shared/agents"
     if mkdir -p "$AGENTS_SHARED/skills" "$SHARED_HOME" 2>/dev/null; then
-        [ -e "$SHARED_HOME/.agents" ] || ln -s "$AGENTS_SHARED" "$SHARED_HOME/.agents"
+        if [ -L "$SHARED_HOME/.agents" ] || [ ! -e "$SHARED_HOME/.agents" ]; then
+            ln -sfn "$AGENTS_SHARED" "$SHARED_HOME/.agents"
+        else
+            echo "⚠️  $SHARED_HOME/.agents is a real directory, not a link to $AGENTS_SHARED — left alone"
+        fi
         if [ -e "$HOME/.agents" ] && [ ! -L "$HOME/.agents" ]; then
             cp -an "$HOME/.agents/." "$AGENTS_SHARED/" 2>/dev/null || true
             rm -rf "$HOME/.agents"
