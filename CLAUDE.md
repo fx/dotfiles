@@ -146,6 +146,19 @@ into `~/.claude/settings.json` (or creates it), preserving every other user sett
 The merge only adds and overwrites keys. Removing a key from `claude.yaml` does
 not remove it from an existing `settings.json` — delete it there by hand.
 
+## Agent Skills
+
+`.chezmoiscripts/run_after_update-agent-skills.sh.tmpl` installs
+[fx/skills](https://github.com/fx/skills) for Claude Code, Codex and pi with the
+[`skills`](https://github.com/vercel-labs/skills) CLI on every apply. The CLI places
+everything: content in `~/.agents/skills` (read directly by Codex and pi), one
+symlink per skill in `~/.claude/skills`. It never prunes — remove a skill dropped
+from fx/skills with `npx skills remove -g <name>`.
+
+In Coder, `~/.agents` and `$DOTFILES_SHARED_HOME/.agents` both link to
+`/shared/agents`, so the store survives rebuilds and the CLI's relative links
+(`../../.agents/skills/<name>`) resolve from either home.
+
 ## Home Assistant Integration (Desktop Profile)
 
 The OpenDeck Stream Deck configuration includes Home Assistant integration for controlling lights via the second encoder knob.
