@@ -235,12 +235,12 @@ end
 
 -- Dictation (hyprwhspr): hold, speak, release -> pasted into the focused window + Enter
 holdBind(key("A"), "hyprwhspr record start", "hyprwhspr record stop")
--- DOIO KB3X-01 macropad, right dial down key (F13; xkb maps it to XF86Tools, so bind by keycode)
-holdBind("code:191", "hyprwhspr record start", "hyprwhspr record stop")
+-- DOIO KB3X-01 macropad, right dial down key (F13, which xkb maps to XF86Tools)
+holdBind("XF86Tools", "hyprwhspr record start", "hyprwhspr record stop")
 -- Voice to the pa agent: hold, speak, release -> today's voice chat in `tx rc`
 holdBind(key("Z"), "$HOME/.local/bin/voice-pa", "hyprwhspr record stop")
--- DOIO KB3X-01 macropad, right dial right key (F14)
-holdBind("code:192", "$HOME/.local/bin/voice-pa", "hyprwhspr record stop")
+-- DOIO KB3X-01 macropad, right dial right key (F14, which xkb maps to XF86Launch5)
+holdBind("XF86Launch5", "$HOME/.local/bin/voice-pa", "hyprwhspr record stop")
 
 
 ------------------

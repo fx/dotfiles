@@ -29,7 +29,7 @@ Custom mappings (layer 0):
 
 | Key | Keycode | Purpose |
 |-----|---------|---------|
-| Right dial, down | `KC_F13` (xkb `code:191`) | Hold-to-talk dictation (hyprwhspr), bound in `hyprland.lua.tmpl` |
-| Right dial, right | `KC_F14` (xkb `code:192`) | Hold-to-talk to the `pa` agent (`voice-pa`), bound in `hyprland.lua.tmpl` |
+| Right dial, down | `KC_F13` (keysym `XF86Tools`) | Hold-to-talk dictation (hyprwhspr), bound in `hyprland.lua.tmpl` |
+| Right dial, right | `KC_F14` (keysym `XF86Launch5`) | Hold-to-talk to the `pa` agent (`voice-pa`), bound in `hyprland.lua.tmpl` |
 
-Bind by keycode — xkb maps F13/F14 to `XF86Tools`/`XF86Launch5`, not `F13`/`F14`.
+Bind by keysym — xkb maps F13/F14 to `XF86Tools`/`XF86Launch5`, not `F13`/`F14`. Hyprland's Lua `hl.bind` does not parse `code:NNN`: such a bind loads with an empty key and fires on any key without a keysym, e.g. the Stream Deck+'s `KEY_UNKNOWN` on dial presses.
