@@ -1,0 +1,35 @@
+#!/bin/bash
+# Managed by github.com/fx/dotfiles
+# Toggle screen recording of a window or region (gpu-screen-recorder + slurp)
+#
+# First run: click a window or drag a region, recording starts.
+# Second run: stops and saves to ~/Videos/Recordings.
+# The region is fixed: moving the window during recording doesn't follow it.
+#
+# `screenrec status` prints waybar JSON (empty when idle, which hides the module).
+
+OUT_DIR="$HOME/Videos/Recordings"
+
+pid=$(pgrep -x gpu-screen-reco)
+
+if [[ "$1" == "status" ]]; then
+    [[ -z "$pid" ]] && { echo '{"text": ""}'; exit 0; }
+    secs=$(ps -o etimes= -p "$pid" | tr -d ' ')
+    printf '{"text": "%s %d:%02d", "class": "recording", "tooltip": "Recording - click to stop"}\n' \
+        "$(printf '')" $((secs / 60)) $((secs % 60))
+    exit 0
+fi
+
+if [[ -n "$pid" ]]; then
+    kill -INT $pid
+    exit 0
+fi
+
+# Offer visible windows as slurp click targets
+geom=$(hyprctl clients -j | jq -r --argjson ws "$(hyprctl monitors -j | jq '[.[].activeWorkspace.id]')" \
+    '.[] | select(.workspace.id as $w | $ws | index($w)) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"' \
+    | slurp -f '%wx%h+%x+%y') || exit 1
+
+mkdir -p "$OUT_DIR"
+exec gpu-screen-recorder -w "$geom" -f 60 -a default_output -ac aac \
+    -o "$OUT_DIR/$(date +%Y-%m-%d-%H%M%S)_recording.mp4"

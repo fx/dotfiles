@@ -210,6 +210,8 @@ hl.bind(key("mouse:273"), hl.dsp.window.resize(), { mouse = true })
 -- Screenshots (hyprshot) - saves to ~/Pictures/Screenshots and copies to clipboard
 hl.bind("CTRL + SHIFT + 3", hl.dsp.exec_cmd("hyprshot -m region -o ~/Pictures/Screenshots"))
 hl.bind("CTRL + SHIFT + 4", hl.dsp.exec_cmd([[mkdir -p ~/Pictures/Screenshots && f=~/Pictures/Screenshots/$(date +%Y-%m-%d-%H%M%S)_screenshot.png && grim -o "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" "$f" && wl-copy < "$f"]]))
+-- Screen recording (screenrec) - click a window or drag a region; press again to stop
+hl.bind("CTRL + SHIFT + 5", hl.dsp.exec_cmd("$HOME/.local/bin/screenrec"))
 
 -- Media keys (also bound inside the game submap)
 local function mediaBinds(full)

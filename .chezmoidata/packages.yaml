@@ -54,6 +54,7 @@ arch:
     - mpv
     # Streaming/recording
     - obs-studio
+    - gpu-screen-recorder  # screenrec: NVENC window/region recording
     - obs-freeze-filter  # AUR: freeze-frame filter (github.com/exeldro/obs-freeze-filter)
     # Camera/photo tools
     - perl-image-exiftool
