@@ -11,6 +11,7 @@
         "hyprland/window"
     ],
     "modules-right": [
+        "custom/screenrec",
 {{ if .is_laptop }}
         "custom/scale",
         "battery",
@@ -72,6 +73,13 @@
         "tooltip": false
     },
 {{ end }}
+
+    "custom/screenrec": {
+        "exec": "screenrec status",
+        "return-type": "json",
+        "interval": 1,
+        "on-click": "screenrec"
+    },
 
     "tray": {
         "spacing": 8
