@@ -7,3 +7,6 @@ hyprwhspr:
     use_hypr_bindings: true
     # Press Enter after pasting the transcription
     auto_submit: true
+    # Mute every other app's audio while recording (100 = reduce volume by 100%)
+    audio_ducking: true
+    audio_ducking_percent: 100

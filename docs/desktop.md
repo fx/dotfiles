@@ -498,7 +498,9 @@ See `dot_config/opendeck/README.md` for encoder/button configuration details.
 [hyprwhspr](https://github.com/goodroot/hyprwhspr) (AUR) does local Whisper speech-to-text. Hold **Alt+A** (or F13, the DOIO macropad's right-dial down key), speak, release: the text is pasted into the focused window and Enter is pressed. **Alt+Z** (or F14) sends the transcription to `tx rc` instead (`~/.local/bin/voice-pa`): into the chat on screen, or — when rc is closed or not on a chat — after a model dialog with `pa` offered first (⏎ sends, Esc drops it).
 
 - **One-time setup:** `hyprwhspr setup` picks the backend/model and installs the `hyprwhspr.service` user unit. Hyprland starts it on `hyprland.start`.
-- **Config:** `.chezmoidata/hyprwhspr.yaml` keys are merged into `~/.config/hyprwhspr/config.json` (`use_hypr_bindings`, `auto_submit`); everything else is left as setup wrote it.
+- **Config:** `.chezmoidata/hyprwhspr.yaml` keys are merged into `~/.config/hyprwhspr/config.json` (`use_hypr_bindings`, `auto_submit`, `audio_ducking*`); everything else is left as setup wrote it.
+- **Other audio is muted while recording** (`audio_ducking`, `audio_ducking_percent: 100`): hyprwhspr drops every other app's stream to 0 and restores it on stop. Its own feedback sounds are left alone.
+- **Works in game mode.** The dictation binds are `submap_universal`, so Alt+A/Alt+Z are taken from the game even in the `game` submap — use F13/F14 if a game needs those.
 - **Release binds need the modifier still held.** The `{ release = true }` bind on Alt+A only fires if Alt is down when A comes up — release A first, or recording keeps running (`hyprwhspr record stop` ends it). Devices that release modifier and key in one report (the DOIO pad) need modifier-less keys.
 
 ## Package Management (paru)
