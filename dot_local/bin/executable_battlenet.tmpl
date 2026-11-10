@@ -36,8 +36,10 @@ BNET_STARTUP_WAIT=15
 
 # Proton build to use. Either a compat tool name (proton_experimental, proton_10,
 # GE-Proton9-27, ...) or an absolute path to a Proton directory.
-# Overrides whatever Steam has configured for the Battle.net prefix.
-BATTLENET_PROTON="${BATTLENET_PROTON:-proton_experimental}"
+# Overrides whatever Steam has configured for the Battle.net prefix. Defaults to
+# the GE-Proton the dotfiles install (.chezmoidata/ge-proton.yaml) for its native
+# Wayland driver (PROTON_ENABLE_WAYLAND below).
+BATTLENET_PROTON="${BATTLENET_PROTON:-{{ .ge_proton.version }}}"
 
 # Container runtime: "sniper" (Steam Linux Runtime) or "none" (host libraries).
 # Proton Experimental (Wine 11) builds a GnuTLS priority string containing
@@ -369,6 +371,12 @@ export PROTON_NVIDIA_LIBS_NO_32BIT=1
 export DXVK_ASYNC=1
 export VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
 
+# Native Wayland windows instead of XWayland: the macropad (hyprland.lua.tmpl) can
+# send keys to an unfocused one directly, without bouncing X focus between Wine
+# windows, which can leave the keyboard dead. Needs a Proton with winewayland
+# (GE-Proton; Valve's Proton ignores it). PROTON_ENABLE_WAYLAND=0 reverts.
+export PROTON_ENABLE_WAYLAND="${PROTON_ENABLE_WAYLAND:-1}"
+
 # WoW: Forever build 1.60.1.69913 ships a compute shader whose traversal loops
 # have no iteration bound; on bad node data it never returns and the GPU dies
 # with Xid 109 CTX SWITCH TIMEOUT on world entry. The directory holds SPIR-V
@@ -403,8 +411,10 @@ export STEAM_COMPAT_INSTALL_PATH="$BNET_PREFIX"
 # The client rewrites this file when it exits, so re-assert the setting before
 # every launch rather than once at install time. Skipped while the client is
 # running, since it would clobber the file on exit anyway.
+BNET_CONFIG="$BNET_PREFIX/pfx/drive_c/users/steamuser/AppData/Roaming/Battle.net/Battle.net.config"
+
 ensure_browser_config() {
-    local cfg="$BNET_PREFIX/pfx/drive_c/users/steamuser/AppData/Roaming/Battle.net/Battle.net.config"
+    local cfg="$BNET_CONFIG"
     [[ -f "$cfg" ]] || return
     is_battlenet_running && return
     if ! command -v jq >/dev/null 2>&1; then
@@ -419,6 +429,10 @@ ensure_browser_config() {
         rm -f "$cfg.tmp"
         echo "Warning: could not update $(basename "$cfg")"
     fi
+}
+
+allows_multiple_instances() {
+    [[ "$(jq -r '.Client.SingleInstance // empty' "$BNET_CONFIG" 2>/dev/null)" == "false" ]]
 }
 
 # Needs the compat env above, so it runs here rather than at parse time.
@@ -463,8 +477,10 @@ fi
 if [[ ${#BNET_ARGS[@]} -gt 0 ]]; then
     run_battlenet "${BNET_ARGS[@]}"
 else
-    # No game specified - just launch Battle.net if not already running
-    if is_battlenet_running; then
+    # No game specified - just launch Battle.net if not already running, unless
+    # the client's "allow multiple instances" setting (Client.SingleInstance)
+    # is off, in which case every launch opens another instance.
+    if is_battlenet_running && ! allows_multiple_instances; then
         echo "Battle.net is already running"
     else
         run_battlenet

@@ -1,0 +1,28 @@
+#!/bin/bash
+# Install the pinned GE-Proton build (.chezmoidata/ge-proton.yaml) into Steam's
+# compatibilitytools.d. The battlenet launcher defaults to it for its native
+# Wayland driver, which Valve's Proton doesn't ship.
+# This script runs when its content changes (i.e. on a version bump).
+
+{{ if .is_desktop -}}
+set -euo pipefail
+
+VERSION={{ .ge_proton.version | quote }}
+SHA512={{ .ge_proton.sha512 | quote }}
+DEST="$HOME/.local/share/Steam/compatibilitytools.d"
+
+if [ -f "$DEST/$VERSION/proton" ]; then
+    echo "✓ $VERSION already installed"
+    exit 0
+fi
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+echo "Downloading $VERSION..."
+curl -fsSL -o "$tmp/$VERSION.tar.gz" \
+    "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/$VERSION/$VERSION.tar.gz"
+echo "$SHA512  $tmp/$VERSION.tar.gz" | sha512sum -c --quiet
+mkdir -p "$DEST"
+tar -xzf "$tmp/$VERSION.tar.gz" -C "$DEST"
+echo "✓ $VERSION installed"
+{{ end -}}

@@ -320,7 +320,7 @@ hl.window_rule({
 -- Gaming - enable immediate mode (tearing) for better frame pacing.
 -- Moonlight (game streaming client) too, for low latency.
 for _, class in ipairs({
-    "steam_app_.*", "steam_proton_.*", "Battle.net.exe", "Wow.exe", "WowClassic.exe",
+    "steam_app_.*", "steam_proton_.*", "battle.net.exe", "wow.exe", "wowclassic.exe",
     "com.moonlight_stream.Moonlight",
 }) do
     hl.window_rule({ match = { class = class }, immediate = true })

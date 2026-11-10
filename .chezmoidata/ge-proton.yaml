@@ -1,0 +1,6 @@
+# GE-Proton build installed into Steam's compatibilitytools.d on the desktop
+# profile (run_onchange_after_install-ge-proton.sh.tmpl) and used by default by
+# ~/.local/bin/battlenet. Bump both fields together from the release's .sha512sum.
+ge_proton:
+  version: GE-Proton10-34
+  sha512: 9fd0b2cfbd501c0b5c892239c392c7283a029b5e5d5a77d3f85b0ce190d555456241a18eebca16b53f094b403499201c13550a3f0b9b365e1a5eb5737cbb7303

@@ -51,7 +51,7 @@ hl.config({
 })
 ```
 
-**Gaming window rules** (one rule per class: `steam_app_.*`, `Battle.net.exe`, `Wow.exe`, ...):
+**Gaming window rules** (one rule per class: `steam_app_.*`, `battle.net.exe`, `wow.exe`, ...; Wine window classes are lowercase):
 ```lua
 hl.window_rule({ match = { class = "steam_app_.*" }, immediate = true })
 ```
@@ -135,6 +135,12 @@ battlenet d4           # Launch Diablo 4
 battlenet --debug      # Show paths and debug info
 ```
 
+Proton defaults to the pinned GE-Proton (`.chezmoidata/ge-proton.yaml`,
+installed by `run_onchange_after_install-ge-proton.sh.tmpl`) for its native
+Wayland driver; `BATTLENET_PROTON=proton_experimental` overrides it. Running
+`battlenet` again while the client is up opens another instance when the
+client's "allow multiple instances" setting is on.
+
 ### Environment Variables
 
 The `battlenet` script sets these automatically:
@@ -146,6 +152,9 @@ PROTON_NVIDIA_LIBS_NO_32BIT=1
 # Prevent freeze when switching workspaces (CRITICAL for D3D12 games)
 DXVK_ASYNC=1
 VKD3D_DISABLE_EXTENSIONS=VK_KHR_present_wait
+
+# Native Wayland windows (GE-Proton only); 0 reverts to XWayland
+PROTON_ENABLE_WAYLAND=1
 ```
 
 ### Troubleshooting
