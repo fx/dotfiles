@@ -1,0 +1,30 @@
+#!/bin/sh
+# Managed by github.com/fx/dotfiles
+# Send a key to a Hyprland window by focusing it for a moment, then restore focus
+# and cursor. For XWayland/Wine windows, which ignore keys while unfocused.
+# Usage: send-key-to-window <address> <key> [mods, e.g. SHIFT]
+target=$1 key=$2 mods=${3:-}
+# Serialize: an overlapping run would read the target as "previous" and leave focus there
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/send-key-to-window.lock"
+flock 9
+win="window = \"address:$target\""
+# Wine ignores Wayland modifier state and only tracks modifier key events, so
+# press the modifier keys explicitly around the shortcut
+down= up=
+for m in $(echo "$mods" | tr '+' ' '); do
+    case $m in
+        SHIFT) k=Shift_L ;; CTRL|CONTROL) k=Control_L ;; ALT) k=Alt_L ;; SUPER) k=Super_L ;; *) continue ;;
+    esac
+    down="$down hl.dispatch(hl.dsp.send_key_state({ mods = \"\", key = \"$k\", state = \"down\", $win }))"
+    up="hl.dispatch(hl.dsp.send_key_state({ mods = \"\", key = \"$k\", state = \"up\", $win })) $up"
+done
+send() { hyprctl eval "$down hl.dispatch(hl.dsp.send_shortcut({ mods = \"$mods\", key = \"$key\", $win })) $up" >/dev/null; }
+prev=$(hyprctl activewindow -j | jq -r .address)
+[ "$prev" = "$target" ] && { send; exit; }
+pos=$(hyprctl cursorpos)
+hyprctl eval "hl.dispatch(hl.dsp.focus({ window = \"address:$target\" }))" >/dev/null
+sleep 0.05
+send
+sleep 0.05
+[ "$prev" = null ] || hyprctl eval "hl.dispatch(hl.dsp.focus({ window = \"address:$prev\" }))" >/dev/null
+hyprctl eval "hl.dispatch(hl.dsp.cursor.move({ x = ${pos%,*}, y = ${pos#*, } }))" >/dev/null

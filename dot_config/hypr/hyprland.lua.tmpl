@@ -244,6 +244,38 @@ holdBind(key("Z"), "$HOME/.local/bin/voice-pa", "hyprwhspr record stop")
 -- DOIO KB3X-01 macropad, right dial right key (F14, which xkb maps to XF86Launch5)
 holdBind("XF86Launch5", "$HOME/.local/bin/voice-pa", "hyprwhspr record stop")
 
+-- DOIO KB12-01 macropad: keys 1-12 send Ctrl+Alt+Shift+F13..F24 (docs/keyboard-layouts/README.md).
+-- Key 12 marks the focused window as the target; keys 1-5 send their shortcut (padKeys) to it.
+local padMods = "CTRL + ALT + SHIFT + "
+local padTarget
+hl.bind(padMods .. "F24", function()
+    local w = hl.get_active_window()
+    -- Wine routes keys to its own active window, which only follows a real focus change, so Wine
+    -- windows (wine-wayland classes end in .exe) get focused briefly like XWayland ones
+    padTarget = w and { address = w.address, focusHop = w.xwayland or w.class:match("%.exe$") ~= nil }
+    hl.notification.create({ text = "Macropad target: " .. (w and w.title or "none"), duration = 2000 })
+end, { submap_universal = true })
+-- { pad key keysym, mods, key } — F13..F17 map to these keysyms in xkb
+local padKeys = {
+    { "XF86Tools",   "",      "1" },
+    { "XF86Launch5", "",      "2" },
+    { "XF86Launch6", "",      "3" },
+    { "XF86Launch7", "SHIFT", "d" },
+    { "XF86Launch8", "",      "5" },
+}
+for _, k in ipairs(padKeys) do
+    local sym, mods, key = k[1], k[2], k[3]
+    hl.bind(padMods .. sym, function()
+        if not padTarget then return end
+        if padTarget.focusHop then
+            -- send_shortcut only moves keyboard focus (XWayland: not even that), so focus it briefly
+            hl.dispatch(hl.dsp.exec_cmd(("$HOME/.local/bin/send-key-to-window %s %s '%s'"):format(padTarget.address, key, mods)))
+        else
+            hl.dispatch(hl.dsp.send_shortcut({ mods = mods, key = key, window = "address:" .. padTarget.address }))
+        end
+    end, { submap_universal = true })
+end
+
 
 ------------------
 ---- GAMEMODE ----

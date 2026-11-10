@@ -32,5 +32,6 @@ shared/
 .local/bin/voice-pa
 .local/bin/battlenet
 .local/bin/battlenet-install
+.local/bin/send-key-to-window
 .local/share/applications/
 {{ end }}
