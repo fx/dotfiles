@@ -1,6 +1,7 @@
 #!/bin/sh
 # Managed by github.com/fx/dotfiles
-# Hold-to-talk -> hyprwhspr transcription -> today's voice chat with the pa agent in `tx rc`
+# Hold-to-talk -> hyprwhspr transcription -> the chat on screen in `tx rc`;
+# with none, rc asks which model to start one with (pa offered first)
 text=$(hyprwhspr record capture) || exit 1
 [ -n "$(printf %s "$text" | tr -d '[:space:]')" ] || exit 0
-exec "$HOME/.local/share/mise/shims/tx" rc --window --chat "voice-$(date +%F)" --agent pa --send "$text"
+exec "$HOME/.local/share/mise/shims/tx" rc --window --current --agent pa --send "$text"

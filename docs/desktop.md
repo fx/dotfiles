@@ -495,7 +495,7 @@ See `dot_config/opendeck/README.md` for encoder/button configuration details.
 
 ## Dictation (hyprwhspr)
 
-[hyprwhspr](https://github.com/goodroot/hyprwhspr) (AUR) does local Whisper speech-to-text. Hold **Alt+A** (or F13, the DOIO macropad's right-dial down key), speak, release: the text is pasted into the focused window and Enter is pressed. **Alt+Z** (or F14) sends the transcription to today's voice chat with the `pa` agent in `tx rc` instead (`~/.local/bin/voice-pa`).
+[hyprwhspr](https://github.com/goodroot/hyprwhspr) (AUR) does local Whisper speech-to-text. Hold **Alt+A** (or F13, the DOIO macropad's right-dial down key), speak, release: the text is pasted into the focused window and Enter is pressed. **Alt+Z** (or F14) sends the transcription to `tx rc` instead (`~/.local/bin/voice-pa`): into the chat on screen, or — when rc is closed or not on a chat — after a model dialog with `pa` offered first (⏎ sends, Esc drops it).
 
 - **One-time setup:** `hyprwhspr setup` picks the backend/model and installs the `hyprwhspr.service` user unit. Hyprland starts it on `hyprland.start`.
 - **Config:** `.chezmoidata/hyprwhspr.yaml` keys are merged into `~/.config/hyprwhspr/config.json` (`use_hypr_bindings`, `auto_submit`); everything else is left as setup wrote it.
